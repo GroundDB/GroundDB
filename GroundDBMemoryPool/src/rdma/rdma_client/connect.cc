@@ -31,10 +31,17 @@ struct resources *connectServer(
         fprintf(stderr, "failed to connect QPs\n");
         return NULL;
     }
+    if (poll_completion(res))
+    {
+        fprintf(stderr, "poll completion failed\n");
+        return NULL;
+    }
+    // Verify connection by matching the string VERIFIER sent by the server
+    if (strcmp(res->buf, VERIFIER))
+    {
+        fprintf(stderr, "failed to verify connection\n");
+        return NULL;
+    }
+    fprintf(stdout, "Connection verified\n");
     return res;
 }
-
-// int main()
-// {
-//     struct resources *res = connectServer("127.0.0.1", 123443, NULL, 1);
-// }
