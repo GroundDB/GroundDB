@@ -158,7 +158,7 @@ End of socket operations
  * poll the queue until MAX_POLL_CQ_TIMEOUT milliseconds have passed.
  *
  ******************************************************************************/
-int poll_completion(struct resources *res)
+int poll_completion(const struct resources *res)
 {
     struct ibv_wc wc;
     unsigned long start_time_msec;
@@ -216,7 +216,7 @@ int poll_completion(struct resources *res)
  * Description
  * This function will create and post a send work request
  ******************************************************************************/
-int post_send(struct resources *res, enum ibv_wr_opcode opcode)
+int post_send(const struct resources *res, const enum ibv_wr_opcode opcode)
 {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
@@ -225,7 +225,7 @@ int post_send(struct resources *res, enum ibv_wr_opcode opcode)
     /* prepare the scatter/gather entry */
     memset(&sge, 0, sizeof(sge));
     sge.addr = (uintptr_t)res->buf;
-    sge.length = MSG_SIZE;
+    sge.length = BUFFER_SIZE;
     sge.lkey = res->mr->lkey;
     /* prepare the send work request */
     memset(&sr, 0, sizeof(sr));
@@ -279,7 +279,7 @@ int post_send(struct resources *res, enum ibv_wr_opcode opcode)
  * Description
  *
  ******************************************************************************/
-int post_receive(struct resources *res)
+int post_receive(const struct resources *res)
 {
     struct ibv_recv_wr rr;
     struct ibv_sge sge;
@@ -288,7 +288,7 @@ int post_receive(struct resources *res)
     /* prepare the scatter/gather entry */
     memset(&sge, 0, sizeof(sge));
     sge.addr = (uintptr_t)res->buf;
-    sge.length = MSG_SIZE;
+    sge.length = BUFFER_SIZE;
     sge.lkey = res->mr->lkey;
     /* prepare the receive work request */
     memset(&rr, 0, sizeof(rr));
@@ -303,26 +303,6 @@ int post_receive(struct resources *res)
     else
         fprintf(stdout, "Receive Request was posted\n");
     return rc;
-}
-/******************************************************************************
- * Function: resources_init
- *
- * Input
- * res pointer to resources structure
- *
- * Output
- * res is initialized
- *
- * Returns
- * none
- *
- * Description
- * res is initialized to default values
- ******************************************************************************/
-void resources_init(struct resources *res)
-{
-    memset(res, 0, sizeof *res);
-    res->sock = -1;
 }
 /******************************************************************************
  * Function: resources_create
@@ -452,7 +432,7 @@ int resources_create(struct resources *res, const char *serverName, const int tc
         goto resources_create_exit;
     }
     /* allocate the memory buffer that will hold the data */
-    size = MSG_SIZE;
+    size = BUFFER_SIZE;
     res->buf = (char *)malloc(size);
     if (!res->buf)
     {
@@ -464,7 +444,7 @@ int resources_create(struct resources *res, const char *serverName, const int tc
     /* only in the server side put the message in the memory buffer */
     if (!serverName)
     {
-        strcpy(res->buf, MSG);
+        strcpy(res->buf, VERIFIER);
         fprintf(stdout, "going to send the message: '%s'\n", res->buf);
     }
     else
