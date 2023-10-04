@@ -17,10 +17,10 @@
 #include <netdb.h>
 /* poll CQ timeout in millisec (2 seconds) */
 #define MAX_POLL_CQ_TIMEOUT 2000
-#define MSG "SEND operation "
+#define VERIFIER "VERIFY_CONNECTION"
 #define RDMAMSGR "RDMA read operation "
 #define RDMAMSGW "RDMA write operation"
-#define MSG_SIZE 1024 * 1024 /* 1024KB*/
+#define BUFFER_SIZE 1024 * 1024 /* 1024KB*/
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 static inline uint64_t htonll(uint64_t x) { return bswap_64(x); }
 static inline uint64_t ntohll(uint64_t x) { return bswap_64(x); }

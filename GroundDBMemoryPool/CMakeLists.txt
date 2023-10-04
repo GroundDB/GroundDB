@@ -36,6 +36,8 @@ add_library(
   rdma_client_lib
   src/rdma/rdma_client/connect.cc
   src/rdma/util.cc
+  src/rdma/rdma_client/read.cc
+  src/rdma/rdma_client/write.cc
 )
 
 # Static library used by server
