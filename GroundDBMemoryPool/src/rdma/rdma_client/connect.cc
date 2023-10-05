@@ -1,5 +1,8 @@
 #include <rdma.hh>
 #include "../util.h"
+
+namespace mempool{
+
 struct resources *connectServer(
     const char *server_name, /* server host name */
     const int tcp_port,      /* server TCP port */
@@ -8,7 +11,7 @@ struct resources *connectServer(
     const int ib_port        /* server IB port */
 )
 {
-    struct resources *res = (struct resources *)malloc(sizeof(struct resources));
+    struct resources *res = new struct resources();
     if (!res)
     {
         fprintf(stderr, "failed to malloc struct resource\n");
@@ -31,13 +34,13 @@ struct resources *connectServer(
         fprintf(stderr, "failed to connect QPs\n");
         return NULL;
     }
-    if (poll_completion(res))
+    if (poll_completion(res, &(res->memregs[0].conns[0])))
     {
         fprintf(stderr, "poll completion failed\n");
         return NULL;
     }
     // Verify connection by matching the string VERIFIER sent by the server
-    if (strcmp(res->buf, VERIFIER))
+    if (strcmp(res->memregs[0].buf, VERIFIER))
     {
         fprintf(stderr, "failed to verify connection\n");
         return NULL;
@@ -45,3 +48,5 @@ struct resources *connectServer(
     fprintf(stdout, "Connection verified\n");
     return res;
 }
+
+} // namespace mempool
