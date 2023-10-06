@@ -21,31 +21,39 @@ struct resources *connectServer(
     if (resources_create(
             res,
             server_name,
-            tcp_port,
             ib_devname,
             ib_port))
     {
         fprintf(stderr, "failed to create resources\n");
         return NULL;
     }
-    if (
-        connect_qp(res, server_name, -1, ib_port))
+    if (register_mr(res)){
+        fprintf(stderr, "failed to register memory regions\n");
+        return NULL;
+    }
+    if (connect_qp(res, &res->memregs[0], server_name, tcp_port, -1, ib_port))
     {
         fprintf(stderr, "failed to connect QPs\n");
         return NULL;
     }
-    if (poll_completion(res, &(res->memregs[0].conns[0])))
+    // Following lines are only for simulation and will be removed in the future.
+    if (post_receive(res, &res->memregs[0], &res->memregs[0].conns[0]))
+    {
+        fprintf(stderr, "failed to post RR\n");
+        return NULL;
+    }
+    if (poll_completion(res, &res->memregs[0].conns[0]))
     {
         fprintf(stderr, "poll completion failed\n");
         return NULL;
     }
-    // Verify connection by matching the string VERIFIER sent by the server
     if (strcmp(res->memregs[0].buf, VERIFIER))
     {
         fprintf(stderr, "failed to verify connection\n");
         return NULL;
     }
     fprintf(stdout, "Connection verified\n");
+    // Remove until here
     return res;
 }
 

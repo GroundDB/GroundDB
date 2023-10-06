@@ -48,12 +48,13 @@ struct cm_con_data_t
 struct connection{
     struct ibv_cq *cq;                 /* CQ handle */
     struct ibv_qp *qp;                 /* QP handle */
-    int sock;                          /* TCP socket file descriptor */
+    int sock{-1};                      /* TCP socket file descriptor */
 };
 struct memory_region{
     std::vector<connection> conns;
     struct ibv_mr *mr;                 /* MR handle for buf */
     char *buf;                         /* memory buffer pointer, used for RDMA and send ops */
+    bool buf_exclusive;                /* whether buf is exclusive or not */
 };
 /* structure of system resources */
 struct resources
