@@ -27,17 +27,19 @@ struct resources *connectServer(
         fprintf(stderr, "failed to create resources\n");
         return NULL;
     }
-    if (register_mr(res)){
+    struct memory_region *memreg = nullptr;
+    if (register_mr(memreg, res)){
         fprintf(stderr, "failed to register memory regions\n");
         return NULL;
     }
-    if (connect_qp(res, &res->memregs[0], server_name, tcp_port, -1, ib_port))
+    struct connection *conn = nullptr;
+    if (connect_qp(conn, res, memreg, server_name, tcp_port, -1, ib_port))
     {
         fprintf(stderr, "failed to connect QPs\n");
         return NULL;
     }
     // Following lines are only for simulation and will be removed in the future.
-    if (post_receive(res, &res->memregs[0], &res->memregs[0].conns[0]))
+    if (post_receive(res, memreg, conn))
     {
         fprintf(stderr, "failed to post RR\n");
         return NULL;

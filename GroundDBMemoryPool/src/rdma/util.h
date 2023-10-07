@@ -13,8 +13,8 @@ int resources_create(
     const char *serverName,
     const char *ibDevName,
     const int ibPort);
-int register_mr(struct resources *res, const char* buf = nullptr, size_t size = BUFFER_SIZE);
-int connect_qp(struct resources *res, struct memory_region *memreg, const char *serverName, const int tcpPort, const int gid_idx, const int ibPort);
+int register_mr(struct memory_region *&memreg, struct resources *res, const char* buf = nullptr, size_t size = BUFFER_SIZE);
+int connect_qp(struct connection *&conn, struct resources *res, struct memory_region *memreg, const char *serverName, const int tcpPort, const int gid_idx, const int ibPort);
 int resources_destroy(struct resources *res);
 
 } // namespace mempool
