@@ -161,7 +161,7 @@ End of socket operations
  * poll the queue until MAX_POLL_CQ_TIMEOUT milliseconds have passed.
  *
  ******************************************************************************/
-int poll_completion(const struct resources *res, const struct connection* conn)
+int poll_completion(const struct connection* conn)
 {
     struct ibv_wc wc;
     unsigned long start_time_msec;
@@ -282,7 +282,7 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
  * Description
  *
  ******************************************************************************/
-int post_receive(const struct resources *res, const struct memory_region *memreg, const struct connection *conn)
+int post_receive(const struct memory_region *memreg, const struct connection *conn)
 {
     struct ibv_recv_wr rr;
     struct ibv_sge sge;
@@ -435,24 +435,23 @@ resources_create_exit:
  * Description
  * Register a new memory region.
  ******************************************************************************/
-int register_mr(struct resources *res, char* buf, size_t size){
+int register_mr(struct resources *res, const char* buf, size_t size){
     int mr_flags = 0;
     int rc = 0;
     res->memregs.emplace_back();
     auto& memreg = res->memregs.back();
     /* allocate the memory buffer that will hold the data */
     if (buf == nullptr){
-        memreg.buf = (char *)malloc(size);
+        memreg.buf = new char[size]();
         if (!memreg.buf){
             fprintf(stderr, "failed to malloc %Zu bytes to memory buffer\n", size);
             rc = 1;
             goto register_mr_exit;
         }
-        memset(memreg.buf, 0, size);
         memreg.buf_exclusive = true;
     }
     else {
-        memreg.buf = buf;
+        memreg.buf = (char*)buf;
         memreg.buf_exclusive = false;
     }
     /* register the memory buffer */
