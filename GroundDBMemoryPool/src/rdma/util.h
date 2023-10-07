@@ -4,14 +4,10 @@ namespace mempool{
 
 int sock_connect(const char *serverName, int port);
 int poll_completion(const struct connection* conn);
-int poll_completion(const struct resources *res, const struct connection* conn){
-    return poll_completion(conn);
-}
+int poll_completion(const struct resources *res, const struct connection* conn);
 int post_send(const struct resources *res, const struct memory_region *memregs, const struct connection *conn, const enum ibv_wr_opcode opcode);
 int post_receive(const struct memory_region *memregs, const struct connection *conn);
-int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn){
-    return post_receive(memregs, conn);
-}
+int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn);
 int resources_create(
     struct resources *res,
     const char *serverName,

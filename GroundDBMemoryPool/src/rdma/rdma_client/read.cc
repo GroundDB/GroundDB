@@ -5,24 +5,26 @@ namespace mempool{
 
 int rdma_read(
     const struct resources *res, /* RDMA Connection resources */
+    struct memory_region *memreg,
+    struct connection *conn,
     char *buffer,                /* Local buffer to read into */
     const size_t size            /* number of bytes to read */
 )
 {
-    if (post_send(res, &res->memregs[0], &res->memregs[0].conns[0], IBV_WR_RDMA_READ))
+    if (post_send(res, memreg, conn, IBV_WR_RDMA_READ))
     {
         fprintf(stderr, "failed to post SR\n");
         return 1;
     }
 
-    if (poll_completion(res, &res->memregs[0].conns[0]))
+    if (poll_completion(res, conn))
     {
         fprintf(stderr, "poll completion failed\n");
         return 1;
     }
     memcpy(
         buffer,
-        res->memregs[0].buf,
+        memreg->buf,
         size);
     return 0;
 }

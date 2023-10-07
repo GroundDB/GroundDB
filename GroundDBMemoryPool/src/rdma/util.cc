@@ -161,6 +161,9 @@ End of socket operations
  * poll the queue until MAX_POLL_CQ_TIMEOUT milliseconds have passed.
  *
  ******************************************************************************/
+int poll_completion(const struct resources *res, const struct connection* conn){
+    return poll_completion(conn);
+}
 int poll_completion(const struct connection* conn)
 {
     struct ibv_wc wc;
@@ -282,6 +285,9 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
  * Description
  *
  ******************************************************************************/
+int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn){
+    return post_receive(memregs, conn);
+}
 int post_receive(const struct memory_region *memreg, const struct connection *conn)
 {
     struct ibv_recv_wr rr;
