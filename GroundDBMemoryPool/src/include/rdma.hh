@@ -8,6 +8,7 @@
 #include <endian.h>
 #include <byteswap.h>
 #include <getopt.h>
+#include <vector>
 
 #include <sys/time.h>
 #include <arpa/inet.h>
@@ -15,6 +16,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+
+namespace mempool{
+
 /* poll CQ timeout in millisec (2 seconds) */
 #define MAX_POLL_CQ_TIMEOUT 2000
 #define VERIFIER "VERIFY_CONNECTION"
@@ -41,6 +45,17 @@ struct cm_con_data_t
     uint8_t gid[16]; /* gid */
 } __attribute__((packed));
 
+struct connection{
+    struct ibv_cq *cq;                 /* CQ handle */
+    struct ibv_qp *qp;                 /* QP handle */
+    int sock{-1};                      /* TCP socket file descriptor */
+};
+struct memory_region{
+    std::vector<connection> conns;
+    struct ibv_mr *mr;                 /* MR handle for buf */
+    char *buf;                         /* memory buffer pointer, used for RDMA and send ops */
+    bool isBufDeletableFlag;                /* whether buf is exclusive or not */
+};
 /* structure of system resources */
 struct resources
 {
@@ -51,13 +66,10 @@ struct resources
     struct cm_con_data_t remote_props; /* values to connect to remote side */
     struct ibv_context *ib_ctx;        /* device handle */
     struct ibv_pd *pd;                 /* PD handle */
-    struct ibv_cq *cq;                 /* CQ handle */
-    struct ibv_qp *qp;                 /* QP handle */
-    struct ibv_mr *mr;                 /* MR handle for buf */
-    char *buf;                         /* memory buffer pointer, used for RDMA and send
-ops */
-    int sock;                          /* TCP socket file descriptor */
+    std::vector<struct memory_region> memregs;
 };
+
+} // namespace mempool
 
 #ifdef SERVER
 #include <rdma_server.hh>

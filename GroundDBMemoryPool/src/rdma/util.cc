@@ -1,3 +1,7 @@
+#include <rdma.hh>
+#include "util.h"
+
+namespace mempool{
 /******************************************************************************
 Socket operations
 For simplicity, the example program uses TCP sockets to exchange control
@@ -24,8 +28,7 @@ this example
  * indicated port for an incoming connection.
  *
  ******************************************************************************/
-#include <rdma.hh>
-#include "util.h"
+
 int sock_connect(const char *serverName, int port)
 {
     struct addrinfo *resolved_addr = NULL;
@@ -158,7 +161,10 @@ End of socket operations
  * poll the queue until MAX_POLL_CQ_TIMEOUT milliseconds have passed.
  *
  ******************************************************************************/
-int poll_completion(const struct resources *res)
+int poll_completion(const struct resources *res, const struct connection* conn){
+    return poll_completion(conn);
+}
+int poll_completion(const struct connection* conn)
 {
     struct ibv_wc wc;
     unsigned long start_time_msec;
@@ -171,7 +177,7 @@ int poll_completion(const struct resources *res)
     start_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     do
     {
-        poll_result = ibv_poll_cq(res->cq, 1, &wc);
+        poll_result = ibv_poll_cq(conn->cq, 1, &wc);
         gettimeofday(&cur_time, NULL);
         cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     } while ((poll_result == 0) && ((cur_time_msec - start_time_msec) < MAX_POLL_CQ_TIMEOUT));
@@ -216,7 +222,7 @@ int poll_completion(const struct resources *res)
  * Description
  * This function will create and post a send work request
  ******************************************************************************/
-int post_send(const struct resources *res, const enum ibv_wr_opcode opcode)
+int post_send(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, const enum ibv_wr_opcode opcode)
 {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
@@ -224,9 +230,9 @@ int post_send(const struct resources *res, const enum ibv_wr_opcode opcode)
     int rc;
     /* prepare the scatter/gather entry */
     memset(&sge, 0, sizeof(sge));
-    sge.addr = (uintptr_t)res->buf;
+    sge.addr = (uintptr_t)memreg->buf;
     sge.length = BUFFER_SIZE;
-    sge.lkey = res->mr->lkey;
+    sge.lkey = memreg->mr->lkey;
     /* prepare the send work request */
     memset(&sr, 0, sizeof(sr));
     sr.next = NULL;
@@ -241,7 +247,7 @@ int post_send(const struct resources *res, const enum ibv_wr_opcode opcode)
         sr.wr.rdma.rkey = res->remote_props.rkey;
     }
     /* there is a Receive Request in the responder side, so we won't get any into RNR flow */
-    rc = ibv_post_send(res->qp, &sr, &bad_wr);
+    rc = ibv_post_send(conn->qp, &sr, &bad_wr);
     if (rc)
         fprintf(stderr, "failed to post SR\n");
     else
@@ -279,7 +285,10 @@ int post_send(const struct resources *res, const enum ibv_wr_opcode opcode)
  * Description
  *
  ******************************************************************************/
-int post_receive(const struct resources *res)
+int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn){
+    return post_receive(memregs, conn);
+}
+int post_receive(const struct memory_region *memreg, const struct connection *conn)
 {
     struct ibv_recv_wr rr;
     struct ibv_sge sge;
@@ -287,9 +296,9 @@ int post_receive(const struct resources *res)
     int rc;
     /* prepare the scatter/gather entry */
     memset(&sge, 0, sizeof(sge));
-    sge.addr = (uintptr_t)res->buf;
+    sge.addr = (uintptr_t)memreg->buf;
     sge.length = BUFFER_SIZE;
-    sge.lkey = res->mr->lkey;
+    sge.lkey = memreg->mr->lkey;
     /* prepare the receive work request */
     memset(&rr, 0, sizeof(rr));
     rr.next = NULL;
@@ -297,7 +306,7 @@ int post_receive(const struct resources *res)
     rr.sg_list = &sge;
     rr.num_sge = 1;
     /* post the Receive Request to the RQ */
-    rc = ibv_post_recv(res->qp, &rr, &bad_wr);
+    rc = ibv_post_recv(conn->qp, &rr, &bad_wr);
     if (rc)
         fprintf(stderr, "failed to post RR\n");
     else
@@ -321,42 +330,13 @@ int post_receive(const struct resources *res)
  * This function creates and allocates all necessary system resources. These
  * are stored in res.
  *****************************************************************************/
-int resources_create(struct resources *res, const char *serverName, const int tcpPort, const char *devName, const int ibPort)
+int resources_create(struct resources *res, const char *serverName, const char *devName, const int ibPort)
 {
     struct ibv_device **dev_list = NULL;
-    struct ibv_qp_init_attr qp_init_attr;
     struct ibv_device *ib_dev = NULL;
-    size_t size;
     int i;
-    int mr_flags = 0;
-    int cq_size = 0;
     int num_devices;
     int rc = 0;
-    /* if client side */
-    if (serverName)
-    {
-        res->sock = sock_connect(serverName, tcpPort);
-        if (res->sock < 0)
-        {
-            fprintf(stderr, "failed to establish TCP connection to server %s, port %d\n",
-                    serverName, tcpPort);
-            rc = -1;
-            goto resources_create_exit;
-        }
-    }
-    else
-    {
-        fprintf(stdout, "waiting on port %d for TCP connection\n", tcpPort);
-        res->sock = sock_connect(NULL, tcpPort);
-        if (res->sock < 0)
-        {
-            fprintf(stderr, "failed to establish TCP connection with client on port %d\n",
-                    tcpPort);
-            rc = -1;
-            goto resources_create_exit;
-        }
-    }
-    fprintf(stdout, "TCP connection was established\n");
     fprintf(stdout, "searching for IB devices in host\n");
     /* get device names in the system */
     dev_list = ibv_get_device_list(&num_devices);
@@ -422,86 +402,10 @@ int resources_create(struct resources *res, const char *serverName, const int tc
         rc = 1;
         goto resources_create_exit;
     }
-    /* each side will send only one WR, so Completion Queue with 1 entry is enough */
-    cq_size = 1;
-    res->cq = ibv_create_cq(res->ib_ctx, cq_size, NULL, NULL, 0);
-    if (!res->cq)
-    {
-        fprintf(stderr, "failed to create CQ with %u entries\n", cq_size);
-        rc = 1;
-        goto resources_create_exit;
-    }
-    /* allocate the memory buffer that will hold the data */
-    size = BUFFER_SIZE;
-    res->buf = (char *)malloc(size);
-    if (!res->buf)
-    {
-        fprintf(stderr, "failed to malloc %Zu bytes to memory buffer\n", size);
-        rc = 1;
-        goto resources_create_exit;
-    }
-    memset(res->buf, 0, size);
-    /* only in the server side put the message in the memory buffer */
-    if (!serverName)
-    {
-        strcpy(res->buf, VERIFIER);
-        fprintf(stdout, "going to send the message: '%s'\n", res->buf);
-    }
-    else
-        memset(res->buf, 0, size);
-    /* register the memory buffer */
-    mr_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
-    res->mr = ibv_reg_mr(res->pd, res->buf, size, mr_flags);
-    if (!res->mr)
-    {
-        fprintf(stderr, "ibv_reg_mr failed with mr_flags=0x%x\n", mr_flags);
-        rc = 1;
-        goto resources_create_exit;
-    }
-    fprintf(stdout, "MR was registered with addr=%p, lkey=0x%x, rkey=0x%x, flags=0x%x\n",
-            res->buf, res->mr->lkey, res->mr->rkey, mr_flags);
-    /* create the Queue Pair */
-    memset(&qp_init_attr, 0, sizeof(qp_init_attr));
-    qp_init_attr.qp_type = IBV_QPT_RC;
-    qp_init_attr.sq_sig_all = 1;
-    qp_init_attr.send_cq = res->cq;
-    qp_init_attr.recv_cq = res->cq;
-    qp_init_attr.cap.max_send_wr = 1;
-    qp_init_attr.cap.max_recv_wr = 1;
-    qp_init_attr.cap.max_send_sge = 1;
-    qp_init_attr.cap.max_recv_sge = 1;
-    res->qp = ibv_create_qp(res->pd, &qp_init_attr);
-    if (!res->qp)
-    {
-        fprintf(stderr, "failed to create QP\n");
-        rc = 1;
-        goto resources_create_exit;
-    }
-    fprintf(stdout, "QP was created, QP number=0x%x\n", res->qp->qp_num);
 resources_create_exit:
     if (rc)
     {
         /* Error encountered, cleanup */
-        if (res->qp)
-        {
-            ibv_destroy_qp(res->qp);
-            res->qp = NULL;
-        }
-        if (res->mr)
-        {
-            ibv_dereg_mr(res->mr);
-            res->mr = NULL;
-        }
-        if (res->buf)
-        {
-            free(res->buf);
-            res->buf = NULL;
-        }
-        if (res->cq)
-        {
-            ibv_destroy_cq(res->cq);
-            res->cq = NULL;
-        }
         if (res->pd)
         {
             ibv_dealloc_pd(res->pd);
@@ -517,12 +421,71 @@ resources_create_exit:
             ibv_free_device_list(dev_list);
             dev_list = NULL;
         }
-        if (res->sock >= 0)
-        {
-            if (close(res->sock))
-                fprintf(stderr, "failed to close socket\n");
-            res->sock = -1;
+    }
+    return rc;
+}
+/******************************************************************************
+ * Function: register_mr
+ *
+ * Input
+ * res pointer to resources structure
+ * buf pointer to the memory segment
+ * size size of the memory segment
+ *
+ * Output
+ * none
+ *
+ * Returns
+ * 0 on success, error code on failure
+ *
+ * Description
+ * Register a new memory region.
+ ******************************************************************************/
+int register_mr(struct memory_region *&memreg, struct resources *res, const char* buf, size_t size){
+    int mr_flags = 0;
+    int rc = 0;
+    res->memregs.emplace_back();
+    memreg = &res->memregs.back();
+    /* allocate the memory buffer that will hold the data */
+    if (buf == nullptr){
+        memreg->buf = new char[size]();
+        if (!memreg->buf){
+            fprintf(stderr, "failed to malloc %Zu bytes to memory buffer\n", size);
+            rc = 1;
+            goto register_mr_exit;
         }
+        memreg->isBufDeletableFlag = true;
+    }
+    else {
+        memreg->buf = (char*)buf;
+        memreg->isBufDeletableFlag = false;
+    }
+    /* register the memory buffer */
+    mr_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+    memreg->mr = ibv_reg_mr(res->pd, memreg->buf, size, mr_flags);
+    if (!memreg->mr)
+    {
+        fprintf(stderr, "ibv_reg_mr failed with mr_flags=0x%x\n", mr_flags);
+        rc = 1;
+        goto register_mr_exit;
+    }
+    fprintf(stdout, "MR was registered with addr=%p, lkey=0x%x, rkey=0x%x, flags=0x%x\n",
+            memreg->buf, memreg->mr->lkey, memreg->mr->rkey, mr_flags);
+register_mr_exit:
+    if (rc)
+    {
+        /* Error encountered, cleanup */
+        if (memreg->mr)
+        {
+            ibv_dereg_mr(memreg->mr);
+            memreg->mr = NULL;
+        }
+        if (memreg->buf && memreg->isBufDeletableFlag)
+        {
+            free(memreg->buf);
+            memreg->buf = NULL;
+        }
+        res->memregs.pop_back();
     }
     return rc;
 }
@@ -658,12 +621,71 @@ static int modify_qp_to_rts(struct ibv_qp *qp)
  * Description
  * Connect the QP. Transition the server side to RTR, sender side to RTS
  ******************************************************************************/
-int connect_qp(struct resources *res, const char *serverName, const int gid_idx, const int ibPort)
+int connect_qp(struct connection *&conn, struct resources *res, struct memory_region *memreg, const char *serverName, const int tcpPort, const int gid_idx, const int ibPort)
 {
+    // Initialize a struct connection
+    int rc = 0;
+    int cq_size = 0;
+    struct ibv_qp_init_attr qp_init_attr;
+    memreg->conns.emplace_back();
+    conn = &memreg->conns.back();
+    /* if client side */
+    if (serverName)
+    {
+        conn->sock = sock_connect(serverName, tcpPort);
+        if (conn->sock < 0)
+        {
+            fprintf(stderr, "failed to establish TCP connection to server %s, port %d\n",
+                    serverName, tcpPort);
+            rc = -1;
+            goto connect_qp_exit;
+        }
+    }
+    else
+    {
+        fprintf(stdout, "waiting on port %d for TCP connection\n", tcpPort);
+        conn->sock = sock_connect(NULL, tcpPort);
+        if (conn->sock < 0)
+        {
+            fprintf(stderr, "failed to establish TCP connection with client on port %d\n",
+                    tcpPort);
+            rc = -1;
+            goto connect_qp_exit;
+        }
+    }
+    fprintf(stdout, "TCP connection was established\n");
+    /* each side will send only one WR, so Completion Queue with 1 entry is enough */
+    cq_size = 1;
+    conn->cq = ibv_create_cq(res->ib_ctx, cq_size, NULL, NULL, 0);
+    if (!conn->cq)
+    {
+        fprintf(stderr, "failed to create CQ with %u entries\n", cq_size);
+        rc = 1;
+        goto connect_qp_exit;
+    }
+    /* create the Queue Pair */
+    memset(&qp_init_attr, 0, sizeof(qp_init_attr));
+    qp_init_attr.qp_type = IBV_QPT_RC;
+    qp_init_attr.sq_sig_all = 1;
+    qp_init_attr.send_cq = conn->cq;
+    qp_init_attr.recv_cq = conn->cq;
+    qp_init_attr.cap.max_send_wr = 1;
+    qp_init_attr.cap.max_recv_wr = 1;
+    qp_init_attr.cap.max_send_sge = 1;
+    qp_init_attr.cap.max_recv_sge = 1;
+    conn->qp = ibv_create_qp(res->pd, &qp_init_attr);
+    if (!conn->qp)
+    {
+        fprintf(stderr, "failed to create QP\n");
+        rc = 1;
+        goto connect_qp_exit;
+    }
+    fprintf(stdout, "QP was created, QP number=0x%x\n", conn->qp->qp_num);
+
+    // Connect queue pair
     struct cm_con_data_t local_con_data;
     struct cm_con_data_t remote_con_data;
     struct cm_con_data_t tmp_con_data;
-    int rc = 0;
     char temp_char;
     union ibv_gid my_gid;
     if (gid_idx >= 0)
@@ -678,13 +700,13 @@ int connect_qp(struct resources *res, const char *serverName, const int gid_idx,
     else
         memset(&my_gid, 0, sizeof my_gid);
     /* exchange using TCP sockets info required to connect QPs */
-    local_con_data.addr = htonll((uintptr_t)res->buf);
-    local_con_data.rkey = htonl(res->mr->rkey);
-    local_con_data.qp_num = htonl(res->qp->qp_num);
+    local_con_data.addr = htonll((uintptr_t)memreg->buf);
+    local_con_data.rkey = htonl(memreg->mr->rkey);
+    local_con_data.qp_num = htonl(conn->qp->qp_num);
     local_con_data.lid = htons(res->port_attr.lid);
     memcpy(local_con_data.gid, &my_gid, 16);
     fprintf(stdout, "\nLocal LID = 0x%x\n", res->port_attr.lid);
-    if (sock_sync_data(res->sock, sizeof(struct cm_con_data_t), (char *)&local_con_data, (char *)&tmp_con_data) < 0)
+    if (sock_sync_data(conn->sock, sizeof(struct cm_con_data_t), (char *)&local_con_data, (char *)&tmp_con_data) < 0)
     {
         fprintf(stderr, "failed to exchange connection data between sides\n");
         rc = 1;
@@ -708,30 +730,20 @@ int connect_qp(struct resources *res, const char *serverName, const int gid_idx,
                 p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
     }
     /* modify the QP to init */
-    rc = modify_qp_to_init(res->qp, ibPort);
+    rc = modify_qp_to_init(conn->qp, ibPort);
     if (rc)
     {
         fprintf(stderr, "change QP state to INIT failed\n");
         goto connect_qp_exit;
     }
-    /* let the client post RR to be prepared for incoming messages */
-    if (serverName)
-    {
-        rc = post_receive(res);
-        if (rc)
-        {
-            fprintf(stderr, "failed to post RR\n");
-            goto connect_qp_exit;
-        }
-    }
     /* modify the QP to RTR */
-    rc = modify_qp_to_rtr(res->qp, remote_con_data.qp_num, remote_con_data.lid, remote_con_data.gid, ibPort, gid_idx);
+    rc = modify_qp_to_rtr(conn->qp, remote_con_data.qp_num, remote_con_data.lid, remote_con_data.gid, ibPort, gid_idx);
     if (rc)
     {
         fprintf(stderr, "failed to modify QP state to RTR\n");
         goto connect_qp_exit;
     }
-    rc = modify_qp_to_rts(res->qp);
+    rc = modify_qp_to_rts(conn->qp);
     if (rc)
     {
         fprintf(stderr, "failed to modify QP state to RTR\n");
@@ -739,12 +751,33 @@ int connect_qp(struct resources *res, const char *serverName, const int gid_idx,
     }
     fprintf(stdout, "QP state was change to RTS\n");
     /* sync to make sure that both sides are in states that they can connect to prevent packet loose */
-    if (sock_sync_data(res->sock, 1, "Q", &temp_char)) /* just send a dummy char back and forth */
+    if (sock_sync_data(conn->sock, 1, "Q", &temp_char)) /* just send a dummy char back and forth */
     {
         fprintf(stderr, "sync error after QPs are were moved to RTS\n");
         rc = 1;
     }
 connect_qp_exit:
+    if (rc)
+    {
+        /* Error encountered, cleanup */
+        if (conn->qp)
+        {
+            ibv_destroy_qp(conn->qp);
+            conn->qp = NULL;
+        }
+        if (conn->cq)
+        {
+            ibv_destroy_cq(conn->cq);
+            conn->cq = NULL;
+        }
+        if (conn->sock >= 0)
+        {
+            if (close(conn->sock))
+                fprintf(stderr, "failed to close socket\n");
+            conn->sock = -1;
+        }
+        memreg->conns.pop_back();
+    }
     return rc;
 }
 /******************************************************************************
@@ -765,26 +798,36 @@ connect_qp_exit:
 int resources_destroy(struct resources *res)
 {
     int rc = 0;
-    if (res->qp)
-        if (ibv_destroy_qp(res->qp))
-        {
-            fprintf(stderr, "failed to destroy QP\n");
-            rc = 1;
+    for(auto& memreg: res->memregs){
+        for(auto& conn: memreg.conns){
+            if (conn.qp)
+                if (ibv_destroy_qp(conn.qp))
+                {
+                    fprintf(stderr, "failed to destroy QP\n");
+                    rc = 1;
+                }
+            if (conn.cq)
+                if (ibv_destroy_cq(conn.cq))
+                {
+                    fprintf(stderr, "failed to destroy CQ\n");
+                    rc = 1;
+                }
+            if (conn.sock >= 0)
+                if (close(conn.sock))
+                {
+                    fprintf(stderr, "failed to close socket\n");
+                    rc = 1;
+                }
         }
-    if (res->mr)
-        if (ibv_dereg_mr(res->mr))
-        {
-            fprintf(stderr, "failed to deregister MR\n");
-            rc = 1;
-        }
-    if (res->buf)
-        free(res->buf);
-    if (res->cq)
-        if (ibv_destroy_cq(res->cq))
-        {
-            fprintf(stderr, "failed to destroy CQ\n");
-            rc = 1;
-        }
+        if (memreg.mr)
+            if (ibv_dereg_mr(memreg.mr))
+            {
+                fprintf(stderr, "failed to deregister MR\n");
+                rc = 1;
+            }
+        if (memreg.buf && memreg.isBufDeletableFlag)
+            free(memreg.buf);
+    }
     if (res->pd)
         if (ibv_dealloc_pd(res->pd))
         {
@@ -797,11 +840,7 @@ int resources_destroy(struct resources *res)
             fprintf(stderr, "failed to close device context\n");
             rc = 1;
         }
-    if (res->sock >= 0)
-        if (close(res->sock))
-        {
-            fprintf(stderr, "failed to close socket\n");
-            rc = 1;
-        }
     return rc;
 }
+
+} // namespace mempool

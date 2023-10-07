@@ -1,4 +1,7 @@
 #pragma once
+
+namespace mempool{
+
 struct resources *connectServer(
     const char *server_name, /* server host name */
     const int tcp_port,      /* server TCP port */
@@ -9,12 +12,18 @@ struct resources *connectServer(
 
 int rdma_read(
     const struct resources *res, /* RDMA Connection resources */
+    struct memory_region *memreg,
+    struct connection *conn,
     char *buffer,                /* Local buffer to read into */
     const size_t size            /* number of bytes to read */
 );
 
 int rdma_write(
     struct resources *res, /* RDMA Connection resources */
+    struct memory_region *memreg,
+    struct connection *conn,
     const char *buffer,    /* Local buffer to write from */
     const size_t size      /* number of bytes to write */
 );
+
+} // namespace mempool
