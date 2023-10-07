@@ -8,7 +8,7 @@ namespace mempool
         const struct resources *res, /* RDMA Connection resources */
         const struct memory_region *memreg,
         const struct connection *conn,
-        const char *buffer, /* buffer to flush*/
+        const char *buffer /* buffer to flush*/
     )
     {
         if (post_send(res, memreg, conn, IBV_WR_RDMA_WRITE))
