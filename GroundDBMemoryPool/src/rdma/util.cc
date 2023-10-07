@@ -454,11 +454,11 @@ int register_mr(struct resources *res, const char* buf, size_t size){
             rc = 1;
             goto register_mr_exit;
         }
-        memreg.buf_exclusive = true;
+        memreg.isBufDeletableFlag = true;
     }
     else {
         memreg.buf = (char*)buf;
-        memreg.buf_exclusive = false;
+        memreg.isBufDeletableFlag = false;
     }
     /* register the memory buffer */
     mr_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
@@ -480,7 +480,7 @@ register_mr_exit:
             ibv_dereg_mr(memreg.mr);
             memreg.mr = NULL;
         }
-        if (memreg.buf && memreg.buf_exclusive)
+        if (memreg.buf && memreg.isBufDeletableFlag)
         {
             free(memreg.buf);
             memreg.buf = NULL;
@@ -825,7 +825,7 @@ int resources_destroy(struct resources *res)
                 fprintf(stderr, "failed to deregister MR\n");
                 rc = 1;
             }
-        if (memreg.buf && memreg.buf_exclusive)
+        if (memreg.buf && memreg.isBufDeletableFlag)
             free(memreg.buf);
     }
     if (res->pd)

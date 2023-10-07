@@ -54,7 +54,7 @@ struct memory_region{
     std::vector<connection> conns;
     struct ibv_mr *mr;                 /* MR handle for buf */
     char *buf;                         /* memory buffer pointer, used for RDMA and send ops */
-    bool buf_exclusive;                /* whether buf is exclusive or not */
+    bool isBufDeletableFlag;                /* whether buf is exclusive or not */
 };
 /* structure of system resources */
 struct resources
