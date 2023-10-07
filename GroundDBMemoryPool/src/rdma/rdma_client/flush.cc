@@ -4,16 +4,13 @@
 namespace mempool
 {
 
-    int rdma_write(
+    int rdma_flush(
         const struct resources *res, /* RDMA Connection resources */
         const struct memory_region *memreg,
         const struct connection *conn,
-        const char *buffer, /* Local buffer to write from */
-        const size_t size   /* number of bytes to write */
+        const char *buffer, /* buffer to flush*/
     )
     {
-        // Attempt to perform rdma write
-        memcpy(memreg->buf, buffer, size);
         if (post_send(res, memreg, conn, IBV_WR_RDMA_WRITE))
         {
             fprintf(stderr, "failed to post SR\n");
