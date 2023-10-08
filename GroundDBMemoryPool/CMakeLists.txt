@@ -38,6 +38,7 @@ add_library(
   src/rdma/util.cc
   src/rdma/rdma_client/read.cc
   src/rdma/rdma_client/write.cc
+  src/rdma/rdma_client/flush.cc
 )
 
 # Static library used by server
