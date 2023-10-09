@@ -39,7 +39,6 @@ add_library(
   src/rdma/allocate_page.cc
   src/rdma/rdma_client/read.cc
   src/rdma/rdma_client/write.cc
-  src/rdma/rdma_client/flush.cc
 )
 
 # Static library used by server

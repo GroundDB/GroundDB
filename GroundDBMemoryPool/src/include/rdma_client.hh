@@ -31,13 +31,4 @@ namespace mempool
         const size_t rofs = 0 /* offset in remote memory region */
     );
 
-    int rdma_flush(
-        const struct resources *res, /* RDMA Connection resources */
-        const struct memory_region *memreg,
-        const struct connection *conn,
-        const size_t lofs = 0,  /* offset in local memory region */
-        const size_t size = -1, /* number of bytes to flush. -1 denotes entire memreg */
-        const size_t rofs = 0 /* offset in remote memory region */
-    );
-
 } // namespace mempool
