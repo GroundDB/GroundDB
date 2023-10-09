@@ -8,10 +8,12 @@ namespace mempool
         const struct resources *res, /* RDMA Connection resources */
         const struct memory_region *memreg,
         const struct connection *conn,
-        const char *buffer /* buffer to flush*/
+        const size_t lofs,  /* offset in local memory region */
+        const size_t size, /* number of bytes to flush. -1 denotes entire memreg */
+        const size_t rofs  /* offset in remote memory region */
     )
     {
-        if (post_send(res, memreg, conn, IBV_WR_RDMA_WRITE))
+        if (post_send(res, memreg, conn, IBV_WR_RDMA_WRITE, lofs, size, rofs))
         {
             fprintf(stderr, "failed to post SR\n");
             return 1;

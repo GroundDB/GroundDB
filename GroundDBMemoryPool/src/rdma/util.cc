@@ -222,7 +222,7 @@ int poll_completion(const struct connection* conn)
  * Description
  * This function will create and post a send work request
  ******************************************************************************/
-int post_send(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, const enum ibv_wr_opcode opcode)
+int post_send(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, const enum ibv_wr_opcode opcode, size_t lofs, size_t size, size_t rofs)
 {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
@@ -230,8 +230,8 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
     int rc;
     /* prepare the scatter/gather entry */
     memset(&sge, 0, sizeof(sge));
-    sge.addr = (uintptr_t)memreg->buf;
-    sge.length = BUFFER_SIZE;
+    sge.addr = (uintptr_t)memreg->buf + lofs;
+    sge.length = size == -1 ? memreg->mr->length : size;
     sge.lkey = memreg->mr->lkey;
     /* prepare the send work request */
     memset(&sr, 0, sizeof(sr));
@@ -243,7 +243,7 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
     sr.send_flags = IBV_SEND_SIGNALED;
     if (opcode != IBV_WR_SEND)
     {
-        sr.wr.rdma.remote_addr = res->remote_props.addr;
+        sr.wr.rdma.remote_addr = res->remote_props.addr + rofs;
         sr.wr.rdma.rkey = res->remote_props.rkey;
     }
     /* there is a Receive Request in the responder side, so we won't get any into RNR flow */
@@ -285,10 +285,10 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
  * Description
  *
  ******************************************************************************/
-int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn){
-    return post_receive(memregs, conn);
+int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn, size_t lofs, size_t size){
+    return post_receive(memregs, conn, lofs, size);
 }
-int post_receive(const struct memory_region *memreg, const struct connection *conn)
+int post_receive(const struct memory_region *memreg, const struct connection *conn, size_t lofs, size_t size)
 {
     struct ibv_recv_wr rr;
     struct ibv_sge sge;
@@ -296,8 +296,8 @@ int post_receive(const struct memory_region *memreg, const struct connection *co
     int rc;
     /* prepare the scatter/gather entry */
     memset(&sge, 0, sizeof(sge));
-    sge.addr = (uintptr_t)memreg->buf;
-    sge.length = BUFFER_SIZE;
+    sge.addr = (uintptr_t)memreg->buf + lofs;
+    sge.length = size == -1 ? memreg->mr->length : size;
     sge.lkey = memreg->mr->lkey;
     /* prepare the receive work request */
     memset(&rr, 0, sizeof(rr));
