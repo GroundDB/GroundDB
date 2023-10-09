@@ -36,6 +36,7 @@ add_library(
   rdma_client_lib
   src/rdma/rdma_client/connect.cc
   src/rdma/util.cc
+  src/rdma/allocate_page.cc
   src/rdma/rdma_client/read.cc
   src/rdma/rdma_client/write.cc
   src/rdma/rdma_client/flush.cc
@@ -46,6 +47,7 @@ add_library(
   rdma_server_lib
   src/rdma/rdma_server/init_server.cc
   src/rdma/util.cc
+  src/rdma/allocate_page.cc
 )
 
 # Compile with -DSERVER for server
