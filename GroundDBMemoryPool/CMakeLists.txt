@@ -66,10 +66,21 @@ add_executable(
   src/test/add.test.cc
 )
 
+add_executable(
+    test_lru
+    src/test/lru/lru.test.cc
+)
+
 target_link_libraries(
   test_add
   GTest::gtest_main
 )
 
+target_link_libraries(
+    test_lru
+    GTest::gtest_main
+)
+
 include(GoogleTest)
 gtest_discover_tests(test_add)
+gtest_discover_tests(test_lru)
