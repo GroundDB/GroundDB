@@ -51,12 +51,8 @@ public:
     if (m.find(key) != m.end()) {
       Node<T, V> *resNode = m[key];
       int ans = resNode->val;
-
-      m.erase(key);
       deleteNode(resNode);
       addNode(resNode);
-
-      m[key] = head->next;
       return ans;
     }
     return -1;
