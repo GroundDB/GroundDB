@@ -69,6 +69,43 @@ struct resources
     std::vector<struct memory_region> memregs;
 };
 
+// Now only support single compute node and single simultaneous request
+class request_buffer {
+public:
+    uint8_t *content_;
+    size_t size_;
+    request_buffer(size_t size): content_(new uint8_t[size]), size_(size) {}
+    ~request_buffer() {delete[] content_;}
+};
+
+// KeyTypeStruct and HashKey are defined in OpenAurora/include/access/logindex_hashmap.h
+struct KeyTypeStruct {
+    uint64_t SpcID;
+    uint64_t DbID;
+    uint64_t RelID;
+    uint32_t ForkNum;
+    int64_t BlkNum;
+};
+typedef struct KeyTypeStruct KeyType;
+uint32_t HashKey(KeyType key);
+
+class KeyTypeHashFunction{
+public:
+    uint32_t operator() (const KeyType &key) const {
+        return HashKey(key);
+    }
+};
+class KeyTypeEqualFunction{
+public:
+    uint32_t operator() (const KeyType &key1, const KeyType &key2) const {
+        return key1.SpcID == key2.SpcID
+            && key1.DbID == key2.DbID
+            && key1.RelID == key2.RelID
+            && key1.ForkNum == key2.ForkNum
+            && key1.BlkNum == key2.BlkNum;
+    }
+};
+
 int allocate_page(struct memory_region *&memreg, struct resources *res, const char* src, size_t page_cnt, size_t page_size = 8ull << 10);
 } // namespace mempool
 #include "lru/lru.hh"

@@ -51,6 +51,9 @@ add_library(
 
 # Compile with -DSERVER for server
 target_compile_definitions(
+  rdma_server_lib PRIVATE SERVER
+)
+target_compile_definitions(
   memory_pool_server PRIVATE SERVER
 )
 

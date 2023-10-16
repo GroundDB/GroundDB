@@ -29,4 +29,18 @@ namespace mempool
         const size_t rofs = 0 /* offset in remote memory region */
     );
 
+    void init_pat_access_on_client(
+        struct resources* res,
+        struct request_buffer* pat_req_buf,
+        const char *server_name, /* server host name */
+        const int tcp_port,     /* server TCP port */
+        const int ib_port       /* server IB port */
+    );
+    uintptr_t get_page_address_from_mempool(
+        const struct resources *res,
+        const struct memory_region *mr,
+        const struct connection *conn,
+        KeyType page_id
+    );
+
 } // namespace mempool
