@@ -76,26 +76,27 @@ void init_pat_access_on_client(
         exit(1);
     }
     struct connection *pat_conn = nullptr;
-    if (connect_qp(pat_conn, res, pat_mr, server_name, tcp_port, -1, ib_port))
+    if (connect_qp(pat_conn, res, pat_mr, server_name, tcp_port + 1, -1, ib_port))
     {
         fprintf(stderr, "failed to connect QPs\n");
         exit(1);
     }
     sock_sync_data(pat_conn);
 }
-uintptr_t get_page_address_from_mempool(
+std::pair<uintptr_t, uint64_t> get_page_address_from_mempool(
         const struct resources *res,
         const struct memory_region *mr,
         const struct connection *conn,
         KeyType page_id
 ){
-    post_receive(res, mr, conn, 0, sizeof(uintptr_t));
+    post_receive(res, mr, conn, 0, sizeof(uintptr_t) + sizeof(uint64_t));
     *(KeyType*)mr->buf = page_id;
     post_send(res, mr, conn, IBV_WR_SEND, 0, sizeof(KeyType));
     poll_completion(res, conn);
     poll_completion(res, conn);
     uintptr_t addr = *(uintptr_t*)mr->buf;
-    return addr;
+    uint64_t LSN = *(uint64_t*)(mr->buf + sizeof(uintptr_t));
+    return std::make_pair(addr, LSN);
 }
 
 } // namespace mempool
