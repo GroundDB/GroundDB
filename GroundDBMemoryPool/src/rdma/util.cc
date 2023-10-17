@@ -140,6 +140,10 @@ static int sock_sync_data(int sock, int xfer_size, char *local_data, char *remot
     }
     return rc;
 }
+int sock_sync_data(const struct connection* conn){
+    char temp_char;
+    return sock_sync_data(conn->sock, 1, "Q", &temp_char);
+}
 /******************************************************************************
 End of socket operations
 ******************************************************************************/
@@ -149,6 +153,7 @@ End of socket operations
  *
  * Input
  * res pointer to resources structure
+ * timeout: the number of millisec to timeout, 0 if no timeout
  *
  * Output
  * none
@@ -161,10 +166,10 @@ End of socket operations
  * poll the queue until MAX_POLL_CQ_TIMEOUT milliseconds have passed.
  *
  ******************************************************************************/
-int poll_completion(const struct resources *res, const struct connection* conn){
-    return poll_completion(conn);
+int poll_completion(const struct resources *res, const struct connection* conn, size_t timeout){
+    return poll_completion(conn, timeout);
 }
-int poll_completion(const struct connection* conn)
+int poll_completion(const struct connection* conn, size_t timeout)
 {
     struct ibv_wc wc;
     unsigned long start_time_msec;
@@ -175,12 +180,13 @@ int poll_completion(const struct connection* conn)
     /* poll the completion for a while before giving up of doing it .. */
     gettimeofday(&cur_time, NULL);
     start_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
+    // todo: use shared threads to poll multiple completion queues so that CPU cost is reduced
     do
     {
         poll_result = ibv_poll_cq(conn->cq, 1, &wc);
         gettimeofday(&cur_time, NULL);
         cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
-    } while ((poll_result == 0) && ((cur_time_msec - start_time_msec) < MAX_POLL_CQ_TIMEOUT));
+    } while ((poll_result == 0) && (timeout == 0ul || ((cur_time_msec - start_time_msec) < timeout)));
     if (poll_result < 0)
     {
         /* poll CQ failed */
@@ -285,8 +291,8 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
  * Description
  *
  ******************************************************************************/
-int post_receive(const struct resources *res, const struct memory_region *memregs, const struct connection *conn, size_t lofs, size_t size){
-    return post_receive(memregs, conn, lofs, size);
+int post_receive(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, size_t lofs, size_t size){
+    return post_receive(memreg, conn, lofs, size);
 }
 int post_receive(const struct memory_region *memreg, const struct connection *conn, size_t lofs, size_t size)
 {

@@ -3,6 +3,8 @@ project(GroundDBMemoryPool)
 
 include_directories(${CMAKE_SOURCE_DIR}/src/include)
 include_directories(/usr/include/rdma)
+# todo: We will need to use macros and types in OpenAurora
+# include_directories(${CMAKE_SOURCE_DIR}/../OpenAurora/include)
 # GoogleTest requires at least C++14
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,6 +41,7 @@ add_library(
   src/rdma/allocate_page.cc
   src/rdma/rdma_client/read.cc
   src/rdma/rdma_client/write.cc
+  src/rdma/pat.cc
 )
 
 # Static library used by server
@@ -47,9 +50,13 @@ add_library(
   src/rdma/rdma_server/init_server.cc
   src/rdma/util.cc
   src/rdma/allocate_page.cc
+  src/rdma/pat.cc
 )
 
 # Compile with -DSERVER for server
+target_compile_definitions(
+  rdma_server_lib PRIVATE SERVER
+)
 target_compile_definitions(
   memory_pool_server PRIVATE SERVER
 )

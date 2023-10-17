@@ -69,9 +69,9 @@ struct resources
     std::vector<struct memory_region> memregs;
 };
 
-int allocate_page(struct memory_region *&memreg, struct resources *res, const char* src, size_t page_cnt, size_t page_size = 8ull << 10);
 } // namespace mempool
 #include "lru/lru.hh"
+#include "pat.hh"
 #ifdef SERVER
 #include <rdma_server.hh>
 #else
