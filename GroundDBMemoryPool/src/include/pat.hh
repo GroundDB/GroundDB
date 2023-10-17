@@ -27,6 +27,14 @@ public:
 // Following is only an example. The actual PageGetLSN is defined in "OpenAurora/include/storage/bufpage.h", which needs modification of CMakeLists.txt to include.
 #define PageGetLSN(addr) (*(uint64_t*)((char*)(addr) + 20))
 
+/* The current design deploy unordered_map which is not memory continuous and thus
+inaccessible by one-sided RDMA. Further discussion and potential re-design are necessary. */
+class page_address_table {
+public:
+    std::unordered_map<KeyType, uintptr_t, KeyTypeHashFunction, KeyTypeEqualFunction> pat;
+    page_address_table(){}
+};
+
 // Now only support single compute node and single simultaneous request
 class request_buffer {
 public:
