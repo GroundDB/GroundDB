@@ -91,19 +91,11 @@ uint32_t HashKey(KeyType key);
 
 class KeyTypeHashFunction{
 public:
-    uint32_t operator() (const KeyType &key) const {
-        return HashKey(key);
-    }
+    uint32_t operator() (const KeyType &key) const;
 };
 class KeyTypeEqualFunction{
 public:
-    uint32_t operator() (const KeyType &key1, const KeyType &key2) const {
-        return key1.SpcID == key2.SpcID
-            && key1.DbID == key2.DbID
-            && key1.RelID == key2.RelID
-            && key1.ForkNum == key2.ForkNum
-            && key1.BlkNum == key2.BlkNum;
-    }
+    uint32_t operator() (const KeyType &key1, const KeyType &key2) const;
 };
 
 // BLCKSZ is defined in OpenAurora/backend/storage/rpc/rpcclient.cpp
