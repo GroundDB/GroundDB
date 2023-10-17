@@ -41,6 +41,7 @@ add_library(
   src/rdma/allocate_page.cc
   src/rdma/rdma_client/read.cc
   src/rdma/rdma_client/write.cc
+  src/rdma/pat.cc
 )
 
 # Static library used by server
@@ -49,6 +50,7 @@ add_library(
   src/rdma/rdma_server/init_server.cc
   src/rdma/util.cc
   src/rdma/allocate_page.cc
+  src/rdma/pat.cc
 )
 
 # Compile with -DSERVER for server
