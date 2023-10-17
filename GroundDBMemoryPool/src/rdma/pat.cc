@@ -2,7 +2,7 @@
 
 namespace mempool{
 
-// Same definition as in OpenAurora/include/access/logindex_hashmap.cpp
+// Same definition as in OpenAurora/backend/access/logindex/logindex_hashmap.cpp
 uint32_t HashKey(KeyType key) {
     uint32_t res = 0;
     res += (key.SpcID&0xFF) * 13 + 7;
