@@ -2,7 +2,7 @@
 
 namespace mempool{
 
-// KeyTypeStruct and HashKey are defined in OpenAurora/include/access/logindex_hashmap.h
+// Same definition as in OpenAurora/include/access/logindex_hashmap.cpp
 uint32_t HashKey(KeyType key) {
     uint32_t res = 0;
     res += (key.SpcID&0xFF) * 13 + 7;
@@ -18,7 +18,7 @@ uint32_t HashKey(KeyType key) {
 uint32_t KeyTypeHashFunction::operator() (const KeyType &key) const {
     return HashKey(key);
 }
-uint32_t KeyTypeEqualFunction::operator() (const KeyType &key1, const KeyType &key2) const {
+bool KeyTypeEqualFunction::operator() (const KeyType &key1, const KeyType &key2) const {
     return key1.SpcID == key2.SpcID
         && key1.DbID == key2.DbID
         && key1.RelID == key2.RelID
