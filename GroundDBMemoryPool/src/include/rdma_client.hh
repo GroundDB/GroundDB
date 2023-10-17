@@ -36,7 +36,8 @@ namespace mempool
         const int tcp_port,     /* server TCP port */
         const int ib_port       /* server IB port */
     );
-    uintptr_t get_page_address_from_mempool(
+    // Get the page's remote address and LSN, -1 if not found
+    std::pair<uintptr_t, uint64_t> get_page_address_from_mempool(
         const struct resources *res,
         const struct memory_region *mr,
         const struct connection *conn,

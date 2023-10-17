@@ -180,6 +180,7 @@ int poll_completion(const struct connection* conn, size_t timeout)
     /* poll the completion for a while before giving up of doing it .. */
     gettimeofday(&cur_time, NULL);
     start_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
+    // todo: use shared threads to poll multiple completion queues so that CPU cost is reduced
     do
     {
         poll_result = ibv_poll_cq(conn->cq, 1, &wc);

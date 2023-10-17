@@ -52,6 +52,10 @@ struct resources* init_server(const int tcp_port,     /* server TCP port */
     auto pat = new page_address_table();
     auto pat_req_buf = new request_buffer(1<<20);
     init_pat_on_server(res, pat, pat_req_buf, tcp_port, ib_port);
+
+    size_t pa_size = 1 << 10;
+    struct memory_region *pa = nullptr;
+    allocate_page(pa, res, nullptr, pa_size);
     return res;
 }
 
@@ -68,7 +72,7 @@ void init_pat_on_server(
         exit(1);
     }
     struct connection *pat_conn = nullptr;
-    if (connect_qp(pat_conn, res, pat_mr, NULL, tcp_port, -1, ib_port))
+    if (connect_qp(pat_conn, res, pat_mr, NULL, tcp_port + 1, -1, ib_port))
     {
         fprintf(stderr, "failed to connect QPs\n");
         exit(1);
@@ -93,9 +97,11 @@ void get_page_address_service(
         poll_completion(res, conn, 0);
         post_receive(res, mr, conn, 0, sizeof(KeyType));
         KeyType page_id = *(KeyType*)mr->buf;
-        uintptr_t addr = pat->pat[page_id];
+        auto iter = pat->pat.find(page_id);
+        uintptr_t addr = iter != pat->pat.end() ? iter->second : -1;
         *(uintptr_t*)mr->buf = addr;
-        post_send(res, mr, conn, IBV_WR_SEND, 0, sizeof(uintptr_t));
+        *(uint64_t*)(mr->buf + sizeof(uintptr_t)) = addr == -1 ? -1 : PageGetLSN(addr);
+        post_send(res, mr, conn, IBV_WR_SEND, 0, sizeof(uintptr_t) + sizeof(uint64_t));
         poll_completion(res, conn);
     }
 }

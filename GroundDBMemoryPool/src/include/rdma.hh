@@ -106,7 +106,12 @@ public:
     }
 };
 
-int allocate_page(struct memory_region *&memreg, struct resources *res, const char* src, size_t page_cnt, size_t page_size = 8ull << 10);
+// BLCKSZ is defined in OpenAurora/backend/storage/rpc/rpcclient.cpp
+#define BLCKSZ 8192
+// Following is only an example. The actual PageGetLSN is defined in "OpenAurora/include/storage/bufpage.h", which needs modification of CMakeLists.txt to include.
+#define PageGetLSN(addr) (*(uint64_t*)((char*)(addr) + 20))
+
+int allocate_page(struct memory_region *&memreg, struct resources *res, const char* src, size_t page_cnt, size_t page_size = BLCKSZ);
 } // namespace mempool
 #include "lru/lru.hh"
 #ifdef SERVER
