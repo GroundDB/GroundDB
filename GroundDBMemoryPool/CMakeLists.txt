@@ -4,7 +4,7 @@ project(GroundDBMemoryPool)
 include_directories(${CMAKE_SOURCE_DIR}/src/include)
 include_directories(/usr/include/rdma)
 # todo: We will need to use macros and types in OpenAurora
-# include_directories(${CMAKE_SOURCE_DIR}/../OpenAurora/include)
+include_directories(${CMAKE_SOURCE_DIR}/../OpenAurora/include)
 # GoogleTest requires at least C++14
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
