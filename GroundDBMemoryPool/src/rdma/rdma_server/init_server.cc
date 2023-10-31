@@ -1,6 +1,7 @@
 #include <thread>
 #include <rdma.hh>
 #include "../util.h"
+#include <threadPool.hh>
 
 namespace mempool {
 
@@ -56,7 +57,13 @@ struct resources* init_server(const int tcp_port,     /* server TCP port */
     size_t pa_size = 1 << 10;
     struct memory_region *pa = nullptr;
     allocate_page(pa, res, nullptr, pa_size);
+    init_thread_pool();
     return res;
+}
+
+void init_thread_pool() {
+    auto thread_pool = new mempool::ThreadPool();
+    thread_pool->SetBackgroundThreads();
 }
 
 void init_pat_on_server(

@@ -51,6 +51,7 @@ add_library(
   src/rdma/util.cc
   src/rdma/allocate_page.cc
   src/rdma/pat.cc
+  src/threadPool.cc
 )
 
 # Compile with -DSERVER for server
