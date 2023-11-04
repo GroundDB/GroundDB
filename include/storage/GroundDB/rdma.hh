@@ -70,10 +70,10 @@ struct resources
 };
 
 } // namespace mempool
-#include "lru/lru.hh"
+#include "lru.hh"
 #include "pat.hh"
 #ifdef SERVER
-#include <rdma_server.hh>
+#include "storage/GroundDB/rdma_server.hh"
 #else
-#include <rdma_client.hh>
+#include "storage/GroundDB/rdma_client.hh"
 #endif
