@@ -34,3 +34,12 @@
 */build
 
 .vscode
+
+# Also excluded by ../.gitignore
+objfiles.txt
+*.so.[0-9]
+*.so.[0-9].[0-9]
+*.so.[0-9].[0-9][0-9]
+lib*.pc
+
+/Makefile.global
