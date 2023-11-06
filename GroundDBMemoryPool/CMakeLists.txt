@@ -68,12 +68,6 @@ target_link_libraries(rdma_server_lib PRIVATE ibverbs)
 target_link_libraries(memory_pool_server PRIVATE ibverbs rdma_server_lib)
 
 add_executable(
-  test_add
-  src/add.cc
-  src/test/add.test.cc
-)
-
-add_executable(
     test_lru
     src/test/lru/lru.test.cc
 )
