@@ -70,30 +70,6 @@ LRUCache::~LRUCache() {
         e->refs++;
     }
 
-// THere should be no lock outside
-//void LRUCache::Ref_in_LookUp(LRUHandle* e) {
-//    //TODO: Update the read lock to a write lock within the if predicate
-//  if (e->refs.load() == 1 && e->in_cache.load()) {  // If on lru_ list, move to in_use_ list.
-//      mutex_.ReadUnlock();
-//      mutex_.WriteLock();
-//      if (e->refs.load() == 1 && e->in_cache.load()) {
-//          LRU_Remove(e);
-//          LRU_Append(&in_use_, e);
-//          e->refs.fetch_add(1);
-//          mutex_.WriteUnlock();
-//          return;
-//      }
-//      e->refs.fetch_add(1);
-//      assert(e->in_cache.load());
-//      mutex_.WriteUnlock();
-//      return;
-//  }
-////  e->refs++;
-//    e->refs.fetch_add(1);
-//    assert(e->in_cache.load());
-//    mutex_.ReadUnlock();
-//}
-
 void LRUCache::Unref(LRUHandle *e, SpinLock *spin_l) {
   assert(e->refs > 0);
   e->refs--;
@@ -109,66 +85,21 @@ void LRUCache::Unref(LRUHandle *e, SpinLock *spin_l) {
 #endif
       assert(!e->in_cache);
     (*e->deleter)(e);
-//    free(e);
     delete e;
-//      if (spin_l!= nullptr ){
-//          spin_l->Lock();
-//      }
   } else if (e->in_cache && e->refs == 1) {
-//#ifndef NDEBUG
-//      if (e->gptr.offset < 9480863232){
-//          printf("page of %lu is removed from the inuse list and apped to LRU list\n", e->gptr.offset);
-//      }
-//#endif
     // No longer in use; move to lru_ list.
     LRU_Remove(e);// remove from in_use list move to LRU list.
     LRU_Append(&lru_, e);
   }
 }
-//void DSMEngine::LRUCache::Unref_WithoutLock(LRUHandle *e) {
-//    assert(e->refs > 0);
-////    e->refs--;
-//    if (e->refs.load() == 1) {  // Deallocate.
-//        WriteLock l(&mutex_);
-//        if (e->refs.fetch_sub(1) == 1){
-//            //Finish erase will only goes here, or directly return. it will neve goes to next if clause
-//            assert(!e->in_cache);
-//            (*e->deleter)(e->key(), e->value);
-//            free(e);
-//        }
-//        return;
-//
-//    } else if (e->in_cache && e->refs.load() == 2) {
-//
-//        WriteLock l(&mutex_);
-//        if (e->in_cache && e->refs.fetch_sub(1) == 2){
-//            // No longer in use; move to lru_ list.
-//            LRU_Remove(e);// remove from in_use list move to LRU list.
-//            LRU_Append(&lru_, e);
-//        }
-//        return;
-//
-//    }
-//    e->refs.fetch_sub(1);
-//}
 
 
 void LRUCache::LRU_Remove(LRUHandle* e) {
-#ifndef NDEBUG
-//    if (e->gptr.offset < 10480863232){
-//        printf("page %lu is being remove from a list", e->gptr.offset);
-//    }
-#endif
   e->next->prev = e->prev;
   e->prev->next = e->next;
 }
 
 void LRUCache::LRU_Append(LRUHandle* list, LRUHandle* e) {
-//#ifndef NDEBUG
-//    if (e->gptr.offset < 9480863232){
-//        printf("page %lu is being append to a LRU list", e->gptr.offset);
-//    }
-//#endif
   // Make "e" newest entry by inserting just before *list
   e->next = list;
   e->prev = list->prev;
@@ -176,28 +107,7 @@ void LRUCache::LRU_Append(LRUHandle* list, LRUHandle* e) {
   e->next->prev = e;
 }
 
-//Cache::Handle* LRUCache::Lookup(const Slice& key, uint32_t hash) {
-//    //TODO: WHEN there is a miss, directly call the RDMA refetch and put it into the
-//    // cache.
-////  MutexLock l(&mutex_);
-//    LRUHandle *e;
-//    {
-//        mutex_.ReadLock();
-//        assert(usage_ <= capacity_);
-//        //TOTHINK(ruihong): should we update the lru list after look up a key?
-//        //  Answer: Ref will refer this key and later, the outer function has to call
-//        // Unref or release which will update the lRU list.
-//        e = table_.Lookup(key, hash);
-//        if (e != nullptr) {
-//            Ref_in_LookUp(e);
-//        }else{
-//            mutex_.ReadUnlock();
-//        }
-//    }
-//
-//  return reinterpret_cast<Cache::Handle*>(e);
-//}
-Cache::Handle* LRUCache::Lookup(const Slice& key, uint32_t hash) {
+Cache::Handle* LRUCache::Lookup(const KeyType& key, uint32_t hash) {
 //  MutexLock l(&mutex_);
     SpinLock l(&mutex_);
     //TOTHINK(ruihong): shoul we update the lru list after look up a key?
@@ -210,7 +120,7 @@ Cache::Handle* LRUCache::Lookup(const Slice& key, uint32_t hash) {
     }
     return reinterpret_cast<Cache::Handle*>(e);
 }
-Cache::Handle *DSMEngine::LRUCache::LookupInsert(const Slice &key, uint32_t hash, void *value, size_t charge,
+Cache::Handle *DSMEngine::LRUCache::LookupInsert(const KeyType &key, uint32_t hash, void *value, size_t charge,
                                                  void (*deleter)(Cache::Handle* handle)) {
     SpinLock l(&mutex_);
     //TOTHINK(ruihong): shoul we update the lru list after look up a key?
@@ -220,40 +130,29 @@ Cache::Handle *DSMEngine::LRUCache::LookupInsert(const Slice &key, uint32_t hash
     if (e != nullptr) {
         assert(e->refs >= 1);
         Ref(e);
-//        assert(e->refs <=2);
-//        DEBUG_PRINT("cache hit when searching the leaf node");
         return reinterpret_cast<Cache::Handle*>(e);
     }else{
-//        fprintf(stdout, "Did not find cache entry for %lu\n", (*(GlobalAddress*)key.data()).offset);
         // This LRU handle is not initialized.
         // TODO: get the LRU handle from the free list.
         e = new LRUHandle();
-//                reinterpret_cast<LRUHandle*>(malloc(sizeof(LRUHandle) - 1 + key.size()));
 
         e->value = value;
         e->remote_lock_status = 0;
         e->remote_lock_urge = false;
         e->strategy = 1;
-        e->gptr = *(GlobalAddress*)key.data();
+        e->page_id = key;
 
         e->deleter = deleter;
         e->charge = charge;
-        e->key_length = key.size();
         e->hash = hash;
         e->in_cache = false;
         e->refs = 1;  // for the returned handle.
-//        std::memcpy(e->key_data, key.data(), key.size());
         if (capacity_ > 0) {
             e->refs++;  // for the table_cache's reference. refer here and unrefer outside
             e->in_cache = true;
             LRU_Append(&in_use_, e);// Finally it will be pushed into LRU list
             usage_ += charge;
             FinishErase(table_.Insert(e), &l);//table_.Insert(e) will return LRUhandle with duplicate key as e, and then delete it by FinishErase
-//#ifndef NDEBUG
-//            if (e->gptr.offset < 9480863232){
-//                printf("page of %lu is inserted into the cache", e->gptr.offset);
-//            }
-//#endif
         } else {  // don't do caching. (capacity_==0 is supported and turns off caching.)
             // next is read by key() in an assert, so it must be initialized
             e->next = nullptr;
@@ -266,7 +165,7 @@ Cache::Handle *DSMEngine::LRUCache::LookupInsert(const Slice &key, uint32_t hash
         assert(usage_ <= capacity_ + kLeafPageSize + kInternalPageSize);
         // This will remove some entry from LRU if the table_cache over size.
 #ifdef BUFFER_HANDOVER
-        bool already_foward_the_mr = false;
+        bool already_reuse_fl_entry = false;
 #endif
 //        if (counter.fetch_add(1) == 100000){
 //            printf("capacity is %zu, usage is %zu\n", capacity_, usage_);
@@ -275,17 +174,12 @@ Cache::Handle *DSMEngine::LRUCache::LookupInsert(const Slice &key, uint32_t hash
         while (usage_ > capacity_ && lru_.next != &lru_) {
             LRUHandle* old = lru_.next;
             assert(old->refs == 1);
-//#ifndef NDEBUG
-//            if (old->gptr.offset < 9480863232){
-//                printf("page of %lu is extracted from the LRUlist", e->gptr.offset);
-//            }
-//#endif
+            if(e->value == nullptr) e->value = old->value;
             // Directly reuse the mr if the evicted cache entry is the same size as the new inserted on.
 #ifdef BUFFER_HANDOVER
-            if (value == nullptr && !already_foward_the_mr && ((ibv_mr*)old->value)->length == charge){
-                old->keep_the_mr = true;
+            if (value == nullptr && !already_reuse_fl_entry){
                 e->value = old->value;
-                already_foward_the_mr = true;
+                already_reuse_fl_entry = true;
             }
 #endif
             bool erased = FinishErase(table_.Remove(old->key(), old->hash), &l);
@@ -301,19 +195,19 @@ Cache::Handle *DSMEngine::LRUCache::LookupInsert(const Slice &key, uint32_t hash
         }
         assert(usage_ <= capacity_);
 
+        if(value == nullptr && !already_reuse_fl_entry)
+          e->value = freelist_->pop_front();
+
         return reinterpret_cast<Cache::Handle*>(e);
     }
 }
 void LRUCache::Release(Cache::Handle* handle) {
-//  MutexLock l(&mutex_);
-//  WriteLock l(&mutex_);
   SpinLock l(&mutex_);
     Unref(reinterpret_cast<LRUHandle *>(handle), &l);
-//    assert(reinterpret_cast<LRUHandle*>(handle)->refs != 0);
 }
 //If the inserted key has already existed, then the old LRU handle will be removed from
 // the cache, but it may not garbage-collected right away.
-Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
+Cache::Handle* LRUCache::Insert(const KeyType& key, uint32_t hash, void* value,
                                 size_t charge,
                                 void (*deleter)(Cache::Handle* handle)) {
 //  MutexLock l(&mutex_);
@@ -326,12 +220,11 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
     e->remote_lock_status = 0;
     e->remote_lock_urge = false;
     e->strategy = 1;
-    e->gptr = *(GlobalAddress*)key.data();
+    e->page_id = key;
 
   e->value = value;
   e->deleter = deleter;
   e->charge = charge;
-  e->key_length = key.size();
   e->hash = hash;
   e->in_cache = false;
   e->refs = 1;  // for the returned handle.
@@ -357,7 +250,7 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
         assert(usage_ <= capacity_ + kLeafPageSize + kInternalPageSize);
   // This will remove some entry from LRU if the table_cache over size.
 #ifdef BUFFER_HANDOVER
-            bool already_foward_the_mr = false;
+            bool already_reuse_fl_entry = false;
 #endif
 
     while (usage_ > capacity_ && lru_.next != &lru_) {
@@ -365,14 +258,12 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
     LRUHandle* old = lru_.next;
     assert(old->refs == 1);
 #ifdef BUFFER_HANDOVER
-      if (value == nullptr && !already_foward_the_mr && ((ibv_mr*)old->value)->length == charge){
-          old->keep_the_mr = true;
+      if (value == nullptr && !already_reuse_fl_entry){
           e->value = old->value;
-          assert(((ibv_mr*)e->value)->addr != nullptr);
-          already_foward_the_mr = true;
+          already_reuse_fl_entry = true;
       }
 #endif
-        assert(l.check_own());
+    assert(l.check_own());
     bool erased = FinishErase(table_.Remove(old->key(), old->hash), &l);
     //some times the finsih Erase will release the spinlock to let other threads working during the RDMA lock releasing.
     //We need to regain the lock here in case that there is another cache entry eviction.
@@ -385,6 +276,9 @@ Cache::Handle* LRUCache::Insert(const Slice& key, uint32_t hash, void* value,
       assert(erased);
     }
   }
+
+  if(value == nullptr && !already_reuse_fl_entry)
+    e->value = freelist_->pop_front();
 
   return reinterpret_cast<Cache::Handle*>(e);
 }
@@ -413,7 +307,7 @@ bool LRUCache::FinishErase(LRUHandle *e, SpinLock *spin_l) {
   return e != nullptr;
 }
 
-void LRUCache::Erase(const Slice& key, uint32_t hash) {
+void LRUCache::Erase(const KeyType& key, uint32_t hash) {
 //  MutexLock l(&mutex_);
 //  WriteLock l(&mutex_);
   SpinLock l(&mutex_);
@@ -446,19 +340,21 @@ class ShardedLRUCache : public Cache {
   port::Mutex id_mutex_;
   uint64_t last_id_;
   size_t capacity_;
+  mempool::FreeList* freelist_;
 
-  static inline uint32_t HashSlice(const Slice& s) {
-    return Hash(s.data(), s.size(), 0);
+  static inline uint32_t HashKeyType(const KeyType& s) {
+    return Hash((char*)&s, sizeof(KeyType), 0);
   }
 
   static uint32_t Shard(uint32_t hash) { return hash >> (32 - kNumShardBits); }
 
  public:
-  explicit ShardedLRUCache(size_t capacity) : last_id_(0) {
+  explicit ShardedLRUCache(size_t capacity, mempool::FreeList* fl) : last_id_(0), freelist_(fl) {
     const size_t per_shard = (capacity + (kNumShards - 1)) / kNumShards;
     capacity_ = capacity;
     for (int s = 0; s < kNumShards; s++) {
       shard_[s].SetCapacity(per_shard);
+      shard_[s].freelist_ = fl;
     }
   }
   ~ShardedLRUCache() override {}
@@ -467,7 +363,7 @@ class ShardedLRUCache : public Cache {
   }
     // if there has already been a cache entry with the same key, the old one will be
     // removed from the cache, but it may not be garbage collected right away
-  Handle* Insert(const Slice& key, void* value, size_t charge,
+  Handle* Insert(const KeyType& key, void* value, size_t charge,
                  void (*deleter)(Cache::Handle* handle)) override {
 #ifndef NDEBUG
         assert(capacity_ >= 1000);
@@ -482,7 +378,7 @@ class ShardedLRUCache : public Cache {
         }
 
 #endif
-    const uint32_t hash = HashSlice(key);
+    const uint32_t hash = HashKeyType(key);
 
 //        auto handle = shard_[Shard(hash)].Insert(key, hash, value, charge, deleter);
 //        printf("Insert: refer to handle %p\n", handle);
@@ -490,20 +386,20 @@ class ShardedLRUCache : public Cache {
         return shard_[Shard(hash)].Insert(key, hash, value, charge, deleter);
   }
   //TODO: Change the search key to GlobalAddress.
-  Handle* Lookup(const Slice& key) override {
+  Handle* Lookup(const KeyType& key) override {
       assert(capacity_ >= 1000);
-    const uint32_t hash = HashSlice(key);
+    const uint32_t hash = HashKeyType(key);
 
 //    auto handle = shard_[Shard(hash)].Lookup(key, hash);
 //      printf("Look up: refer to handle %p\n", handle);
     return shard_[Shard(hash)].Lookup(key, hash);
   }
-    Handle* LookupInsert(const Slice& key,  void* value,
+    Handle* LookupInsert(const KeyType& key,  void* value,
                          size_t charge,
                          void (*deleter)(Cache::Handle* handle)) override{
 
                 assert(capacity_ >= 1000);
-                const uint32_t hash = HashSlice(key);
+                const uint32_t hash = HashKeyType(key);
                 return shard_[Shard(hash)].LookupInsert(key, hash, value, charge, deleter);
   };
   void Release(Handle* handle) override {
@@ -511,8 +407,8 @@ class ShardedLRUCache : public Cache {
 //      printf("release handle %p\n", handle);
     shard_[Shard(h->hash)].Release(handle);
   }
-  void Erase(const Slice& key) override {
-    const uint32_t hash = HashSlice(key);
+  void Erase(const KeyType& key) override {
+    const uint32_t hash = HashKeyType(key);
     shard_[Shard(hash)].Erase(key, hash);
   }
   void* Value(Handle* handle) override {
@@ -537,7 +433,7 @@ class ShardedLRUCache : public Cache {
 };
 
 
-Cache* NewLRUCache(size_t capacity) { return new ShardedLRUCache(capacity); }
+Cache* NewLRUCache(size_t capacity, mempool::FreeList* fl) { return new ShardedLRUCache(capacity, fl); }
 
 
 LocalBuffer::LocalBuffer(const CacheConfig &cache_config) {

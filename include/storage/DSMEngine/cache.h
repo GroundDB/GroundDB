@@ -22,11 +22,11 @@
 #include <map>
 
 #include "storage/DSMEngine/export.h"
-#include "storage/DSMEngine/slice.h"
 #include <shared_mutex>
 
 #include "storage/DSMEngine/Config.h"
 #include "utils/DSMEngine/mutexlock.h"
+#include "storage/GroundDB/lru.hh"
 
 namespace DSMEngine {
 //class RDMA_Manager;
@@ -59,7 +59,7 @@ class DSMEngine_EXPORT Cache;
 
 // Create a new table_cache with a fixed size capacity.  This implementation
 // of Cache uses a least-recently-used eviction policy.
-DSMEngine_EXPORT Cache* NewLRUCache(size_t capacity);
+DSMEngine_EXPORT Cache* NewLRUCache(size_t capacity, mempool::FreeList* fl);
 
 class DSMEngine_EXPORT Cache {
  public:
@@ -71,7 +71,7 @@ class DSMEngine_EXPORT Cache {
         //TODO: the internal node may not need the rw_mtx below, maybe we can delete them.
         std::atomic<bool> remote_lock_urge;
         std::atomic<int> remote_lock_status = 0; // 0 unlocked, 1 read locked, 2 write lock
-        GlobalAddress gptr = GlobalAddress::Null();
+        KeyType page_id;
         std::atomic<int> strategy = 1; // strategy 1 normal read write locking without releasing, strategy 2. Write lock with release, optimistic latch free read.
         bool keep_the_mr = false;
         std::shared_mutex rw_mtx;
@@ -90,7 +90,7 @@ class DSMEngine_EXPORT Cache {
 
   virtual size_t GetCapacity() = 0;
 
-  //TODO: change the slice key to GlobalAddress& key.
+  //TODO: change the KeyType key to GlobalAddress& key.
 
   // Insert a mapping from key->value into the table_cache and assign it
   // the specified charge against the total table_cache capacity.
@@ -101,7 +101,7 @@ class DSMEngine_EXPORT Cache {
   //
   // When the inserted entry is no longer needed, the key and
   // value will be passed to "deleter".
-  virtual Handle* Insert(const Slice& key, void* value, size_t charge,
+  virtual Handle* Insert(const KeyType& key, void* value, size_t charge,
                          void (*deleter)(Cache::Handle* handle)) = 0;
 
   // If the table_cache has no mapping for "key", returns nullptr.
@@ -109,9 +109,9 @@ class DSMEngine_EXPORT Cache {
   // Else return a handle that corresponds to the mapping.  The caller
   // must call this->Release(handle) when the returned mapping is no
   // longer needed.
-  virtual Handle* Lookup(const Slice& key) = 0;
+  virtual Handle* Lookup(const KeyType& key) = 0;
   //Atomic cache look up and Insert a new handle atomically for the key if not found.
-  virtual Handle* LookupInsert(const Slice& key, void* value,
+  virtual Handle* LookupInsert(const KeyType& key, void* value,
                                 size_t charge,
                                 void (*deleter)(Cache::Handle* handle)) = 0;
   // Release a mapping returned by a previous Lookup().
@@ -128,7 +128,7 @@ class DSMEngine_EXPORT Cache {
   // If the table_cache contains entry for key, erase it.  Note that the
   // underlying entry will be kept around until all existing handles
   // to it have been released.
-  virtual void Erase(const Slice& key) = 0;
+  virtual void Erase(const KeyType& key) = 0;
 //TODO: a new function which pop out a least recent used entry. which will be reused later.
 
   // Return a new numeric id.  May be used by multiple clients who are
@@ -163,17 +163,15 @@ class DSMEngine_EXPORT Cache {
         LRUHandle* next;
         LRUHandle* prev;
         size_t charge;  // TODO(opt): Only allow uint32_t?
-        size_t key_length;
         std::atomic<bool> in_cache;     // Whether entry is in the table_cache.
         uint32_t hash;     // Hash of key(); used for fast sharding and comparisons
 //        char key_data[1];  // Beginning of key
 
-        Slice key() const {
+        KeyType key() const {
             // next_ is only equal to this if the LRU handle is the list head of an
             // empty list. List heads never have meaningful keys.
             assert(next != this);
-            assert(key_length == 8);
-            return Slice((char*)&gptr, key_length);
+            return this->page_id;
         }
     };
 class LocalBuffer {
@@ -197,13 +195,11 @@ public:
     HandleTable() : length_(0), elems_(0), list_(nullptr) { Resize(); }
     ~HandleTable() { delete[] list_; }
 
-    LRUHandle* Lookup(const Slice& key, uint32_t hash) {
-        assert(elems_ == page_cache_shadow.size());
+    LRUHandle* Lookup(const KeyType& key, uint32_t hash) {
         return *FindPointer(key, hash);
     }
     //
     LRUHandle* Insert(LRUHandle* h) {
-        assert(elems_ == page_cache_shadow.size());
         LRUHandle** ptr = FindPointer(h->key(), h->hash);
         LRUHandle* old = *ptr;
         // if we find a LRUhandle whose key is same as h, we replace that LRUhandle
@@ -218,21 +214,10 @@ public:
                 Resize();
             }
         }
-#ifndef NDEBUG
-        GlobalAddress gprt = h->key().ToGlobalAddress();
-//        fprintf(stdout, "page of %lu is inserted into the cache table\n", gprt.offset);
-        page_cache_shadow.insert({gprt, h});
-#endif
         return old;
     }
 
-    LRUHandle* Remove(Slice key, uint32_t hash) {
-        assert(elems_ == page_cache_shadow.size());
-#ifndef NDEBUG
-        GlobalAddress gprt = key.ToGlobalAddress();
-//          printf("page of %lu is removed from the cache table", gprt.offset);
-        auto erased_num  = page_cache_shadow.erase(key.ToGlobalAddress());
-#endif
+    LRUHandle* Remove(KeyType key, uint32_t hash) {
         LRUHandle** ptr = FindPointer(key, hash);
         LRUHandle* result = *ptr;
         //TODO: only erase those lru handles which has been accessed. THis can prevent
@@ -241,7 +226,6 @@ public:
             //*ptr belongs to the Handle previous to the result.
             *ptr = result->next_hash;// ptr is the "next_hash" in the handle previous to the result
             --elems_;
-            assert(erased_num == 1);
         }
         return result;
     }
@@ -252,25 +236,14 @@ private:
     uint32_t length_;
     uint32_t elems_;
     LRUHandle** list_;
-#ifndef NDEBUG
-    std::map<uint64_t , void*> page_cache_shadow;
-#endif
     // Return a pointer to slot that points to a table_cache entry that
     // matches key/hash.  If there is no such table_cache entry, return a
     // pointer to the trailing slot in the corresponding linked list.
-    LRUHandle** FindPointer(Slice key, uint32_t hash) {
+    LRUHandle** FindPointer(KeyType key, uint32_t hash) {
         LRUHandle** ptr = &list_[hash & (length_ - 1)];
         while (*ptr != nullptr && ((*ptr)->hash != hash || key != (*ptr)->key())) {
             ptr = &(*ptr)->next_hash;
         }
-//#ifndef NDEBUG
-//      if (*ptr == nullptr){
-////          void* returned_ptr = page_cache_shadow[key.ToGlobalAddress()];
-//          assert(page_cache_shadow.find(key.ToGlobalAddress()) == page_cache_shadow.end());
-//      }else{
-//          assert(page_cache_shadow.find(key.ToGlobalAddress()) != page_cache_shadow.end());
-//        }
-//#endif
         // This iterator will stop at the LRUHandle whose next_hash is nullptr or its nexthash's
         // key and hash value is the target.
         return ptr;
@@ -314,16 +287,16 @@ public:
     void SetCapacity(size_t capacity) { capacity_ = capacity; }
 
     // Like Cache methods, but with an extra "hash" parameter.
-    Cache::Handle* Insert(const Slice& key, uint32_t hash, void* value,
+    Cache::Handle* Insert(const KeyType& key, uint32_t hash, void* value,
                           size_t charge,
                           void (*deleter)(Cache::Handle* handle));
-    Cache::Handle* Lookup(const Slice& key, uint32_t hash);
-    Cache::Handle* LookupInsert(const Slice& key, uint32_t hash, void* value,
+    Cache::Handle* Lookup(const KeyType& key, uint32_t hash);
+    Cache::Handle* LookupInsert(const KeyType& key, uint32_t hash, void* value,
                                 size_t charge,
                                 void (*deleter)(Cache::Handle* handle));
     //TODO: make the release not acquire the cache lock.
     void Release(Cache::Handle* handle);
-    void Erase(const Slice& key, uint32_t hash);
+    void Erase(const KeyType& key, uint32_t hash);
     void Prune();
     size_t TotalCharge() const {
 //    MutexLock l(&mutex_);
@@ -332,6 +305,7 @@ public:
         return usage_;
     }
 
+    mempool::FreeList* freelist_;
 private:
     void LRU_Remove(LRUHandle* e);
     void LRU_Append(LRUHandle* list, LRUHandle* e);
