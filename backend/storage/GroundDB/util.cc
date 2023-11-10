@@ -147,6 +147,12 @@ int sock_sync_data(const struct connection* conn){
 /******************************************************************************
 End of socket operations
 ******************************************************************************/
+
+uint64_t obtain_wr_id(struct memory_region* memreg){
+	std::lock_guard<std::mutex> lk(*memreg->wr_id_mtx);
+	return memreg->wr_id_cnt++;
+}
+
 /* poll_completion */
 /******************************************************************************
  * Function: poll_completion
@@ -166,10 +172,7 @@ End of socket operations
  * poll the queue until MAX_POLL_CQ_TIMEOUT milliseconds have passed.
  *
  ******************************************************************************/
-int poll_completion(const struct resources *res, const struct connection* conn, size_t timeout){
-    return poll_completion(conn, timeout);
-}
-int poll_completion(const struct connection* conn, size_t timeout)
+int poll_completion(const struct resources *res, struct memory_region *memreg, uint64_t wr_id, size_t timeout)
 {
     struct ibv_wc wc;
     unsigned long start_time_msec;
@@ -183,7 +186,19 @@ int poll_completion(const struct connection* conn, size_t timeout)
     // todo: use shared threads to poll multiple completion queues so that CPU cost is reduced
     do
     {
-        poll_result = ibv_poll_cq(conn->cq, 1, &wc);
+        std::lock_guard<std::mutex> lk(*memreg->poll_cq_mtx);
+        poll_result = 0;
+        if(memreg->polled_wc.count(wr_id)){
+            memreg->polled_wc.erase(wr_id);
+            poll_result = 1;
+        }
+        else{
+            poll_result = ibv_poll_cq(memreg->cq, 1, &wc);
+            if(poll_result == 1 && wc.wr_id != wr_id){
+                memreg->polled_wc[wc.wr_id] = wc;
+                poll_result = 0;
+            }
+        }
         gettimeofday(&cur_time, NULL);
         cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     } while ((poll_result == 0) && (timeout == 0ul || ((cur_time_msec - start_time_msec) < timeout)));
@@ -212,6 +227,57 @@ int poll_completion(const struct connection* conn, size_t timeout)
     }
     return rc;
 }
+// poll completion and return whenever there is a work_completion regardless of wr_id
+int poll_any_completion(const struct resources *res, struct memory_region *memreg, uint64_t& wr_id, size_t timeout)
+{
+    struct ibv_wc wc;
+    unsigned long start_time_msec;
+    unsigned long cur_time_msec;
+    struct timeval cur_time;
+    int poll_result;
+    int rc = 0;
+    /* poll the completion for a while before giving up of doing it .. */
+    gettimeofday(&cur_time, NULL);
+    start_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
+    do
+    {
+        std::lock_guard<std::mutex> lk(*memreg->poll_cq_mtx);
+        poll_result = 0;
+        if(!memreg->polled_wc.empty()){
+            wc = memreg->polled_wc.begin()->second;
+            memreg->polled_wc.erase(memreg->polled_wc.begin());
+            poll_result = 1;
+        }
+        else
+            poll_result = ibv_poll_cq(memreg->cq, 1, &wc);
+        gettimeofday(&cur_time, NULL);
+        cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
+    } while ((poll_result == 0) && (timeout == 0ul || ((cur_time_msec - start_time_msec) < timeout)));
+    if (poll_result < 0)
+    {
+        /* poll CQ failed */
+        fprintf(stderr, "poll CQ failed\n");
+        rc = 1;
+    }
+    else if (poll_result == 0){
+        /* the CQ is empty */
+        fprintf(stderr, "completion wasn't found in the CQ after timeout\n");
+        rc = 1;
+    }
+    else{
+        /* CQE found */
+        fprintf(stdout, "completion was found in CQ with status 0x%x\n", wc.status);
+        /* check the completion status (here we don't care about the completion opcode */
+        if (wc.status != IBV_WC_SUCCESS)
+        {
+            fprintf(stderr, "got bad completion with status: 0x%x, vendor syndrome: 0x%x\n", wc.status,
+                    wc.vendor_err);
+            rc = 1;
+        }
+    }
+    wr_id = wc.wr_id;
+    return rc;
+}
 /******************************************************************************
  * Function: post_send
  *
@@ -228,7 +294,7 @@ int poll_completion(const struct connection* conn, size_t timeout)
  * Description
  * This function will create and post a send work request
  ******************************************************************************/
-int post_send(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, const enum ibv_wr_opcode opcode, size_t lofs, size_t size, size_t rofs)
+int post_send(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, const enum ibv_wr_opcode opcode, uint64_t wr_id, size_t lofs, size_t size, size_t rofs)
 {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
@@ -242,7 +308,7 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
     /* prepare the send work request */
     memset(&sr, 0, sizeof(sr));
     sr.next = NULL;
-    sr.wr_id = 0;
+    sr.wr_id = wr_id;
     sr.sg_list = &sge;
     sr.num_sge = 1;
     sr.opcode = opcode;
@@ -291,10 +357,7 @@ int post_send(const struct resources *res, const struct memory_region *memreg, c
  * Description
  *
  ******************************************************************************/
-int post_receive(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, size_t lofs, size_t size){
-    return post_receive(memreg, conn, lofs, size);
-}
-int post_receive(const struct memory_region *memreg, const struct connection *conn, size_t lofs, size_t size)
+int post_receive(const struct resources *res, const struct memory_region *memreg, const struct connection *conn, uint64_t wr_id, size_t lofs, size_t size)
 {
     struct ibv_recv_wr rr;
     struct ibv_sge sge;
@@ -308,7 +371,7 @@ int post_receive(const struct memory_region *memreg, const struct connection *co
     /* prepare the receive work request */
     memset(&rr, 0, sizeof(rr));
     rr.next = NULL;
-    rr.wr_id = 0;
+    rr.wr_id = wr_id;
     rr.sg_list = &sge;
     rr.num_sge = 1;
     /* post the Receive Request to the RQ */
@@ -448,10 +511,15 @@ resources_create_exit:
  * Register a new memory region.
  ******************************************************************************/
 int register_mr(struct memory_region *&memreg, struct resources *res, const char* buf, size_t size){
+    int cq_size = 0;
     int mr_flags = 0;
     int rc = 0;
     res->memregs.emplace_back();
     memreg = &res->memregs.back();
+
+    memreg->wr_id_mtx = std::make_unique<std::mutex>();
+    memreg->poll_cq_mtx = std::make_unique<std::mutex>();
+
     /* allocate the memory buffer that will hold the data */
     if (buf == nullptr){
         memreg->buf = new char[size]();
@@ -477,6 +545,14 @@ int register_mr(struct memory_region *&memreg, struct resources *res, const char
     }
     fprintf(stdout, "MR was registered with addr=%p, lkey=0x%x, rkey=0x%x, flags=0x%x\n",
             memreg->buf, memreg->mr->lkey, memreg->mr->rkey, mr_flags);
+    cq_size = 1024;
+    memreg->cq = ibv_create_cq(res->ib_ctx, cq_size, NULL, NULL, 0);
+    if (!memreg->cq)
+    {
+        fprintf(stderr, "failed to create CQ with %u entries\n", cq_size);
+        rc = 1;
+        goto register_mr_exit;
+    }
 register_mr_exit:
     if (rc)
     {
@@ -490,6 +566,11 @@ register_mr_exit:
         {
             free(memreg->buf);
             memreg->buf = NULL;
+        }
+        if (memreg->cq)
+        {
+            ibv_destroy_cq(memreg->cq);
+            memreg->cq = NULL;
         }
         res->memregs.pop_back();
     }
@@ -631,7 +712,6 @@ int connect_qp(struct connection *&conn, struct resources *res, struct memory_re
 {
     // Initialize a struct connection
     int rc = 0;
-    int cq_size = 0;
     struct ibv_qp_init_attr qp_init_attr;
     memreg->conns.emplace_back();
     conn = &memreg->conns.back();
@@ -660,21 +740,12 @@ int connect_qp(struct connection *&conn, struct resources *res, struct memory_re
         }
     }
     fprintf(stdout, "TCP connection was established\n");
-    /* each side will send only one WR, so Completion Queue with 1 entry is enough */
-    cq_size = 1;
-    conn->cq = ibv_create_cq(res->ib_ctx, cq_size, NULL, NULL, 0);
-    if (!conn->cq)
-    {
-        fprintf(stderr, "failed to create CQ with %u entries\n", cq_size);
-        rc = 1;
-        goto connect_qp_exit;
-    }
     /* create the Queue Pair */
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     qp_init_attr.qp_type = IBV_QPT_RC;
     qp_init_attr.sq_sig_all = 1;
-    qp_init_attr.send_cq = conn->cq;
-    qp_init_attr.recv_cq = conn->cq;
+    qp_init_attr.send_cq = memreg->cq;
+    qp_init_attr.recv_cq = memreg->cq;
     qp_init_attr.cap.max_send_wr = 1;
     qp_init_attr.cap.max_recv_wr = 1;
     qp_init_attr.cap.max_send_sge = 1;
@@ -771,11 +842,6 @@ connect_qp_exit:
             ibv_destroy_qp(conn->qp);
             conn->qp = NULL;
         }
-        if (conn->cq)
-        {
-            ibv_destroy_cq(conn->cq);
-            conn->cq = NULL;
-        }
         if (conn->sock >= 0)
         {
             if (close(conn->sock))
@@ -812,12 +878,6 @@ int resources_destroy(struct resources *res)
                     fprintf(stderr, "failed to destroy QP\n");
                     rc = 1;
                 }
-            if (conn.cq)
-                if (ibv_destroy_cq(conn.cq))
-                {
-                    fprintf(stderr, "failed to destroy CQ\n");
-                    rc = 1;
-                }
             if (conn.sock >= 0)
                 if (close(conn.sock))
                 {
@@ -825,6 +885,12 @@ int resources_destroy(struct resources *res)
                     rc = 1;
                 }
         }
+        if (memreg.cq)
+            if (ibv_destroy_cq(memreg.cq))
+            {
+                fprintf(stderr, "failed to destroy CQ\n");
+                rc = 1;
+            }
         if (memreg.mr)
             if (ibv_dereg_mr(memreg.mr))
             {
