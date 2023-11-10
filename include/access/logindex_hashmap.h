@@ -30,6 +30,14 @@ struct KeyTypeStruct {
     // If blkNum is -1, then this is a relation key
     // else, it's a block key
     int64_t BlkNum;
+    bool operator== (const struct KeyTypeStruct& o) const {
+        return SpcID == o.SpcID && DbID == o.DbID && RelID == o.RelID
+            && ForkNum == o.ForkNum && BlkNum == o.BlkNum;
+    }
+    bool operator!= (const struct KeyTypeStruct& o) const {
+        return SpcID != o.SpcID || DbID != o.DbID || RelID != o.RelID
+            || ForkNum != o.ForkNum || BlkNum != o.BlkNum;
+    }
 };
 
 typedef struct KeyTypeStruct KeyType;
