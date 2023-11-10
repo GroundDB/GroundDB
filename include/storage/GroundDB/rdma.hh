@@ -17,6 +17,10 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include <map>
+#include <mutex>
+#include <memory>
+
 namespace mempool{
 
 /* poll CQ timeout in millisec (2 seconds) */
@@ -46,7 +50,6 @@ struct cm_con_data_t
 } __attribute__((packed));
 
 struct connection{
-    struct ibv_cq *cq;                 /* CQ handle */
     struct ibv_qp *qp;                 /* QP handle */
     int sock{-1};                      /* TCP socket file descriptor */
 };
@@ -55,6 +58,10 @@ struct memory_region{
     struct ibv_mr *mr;                 /* MR handle for buf */
     char *buf;                         /* memory buffer pointer, used for RDMA and send ops */
     bool isBufDeletableFlag;                /* whether buf is exclusive or not */
+    struct ibv_cq *cq;                 /* CQ handle */
+    std::map<uint64_t, struct ibv_wc> polled_wc;
+	std::unique_ptr<std::mutex> wr_id_mtx, poll_cq_mtx;
+	uint64_t wr_id_cnt;
 };
 /* structure of system resources */
 struct resources
@@ -72,8 +79,5 @@ struct resources
 } // namespace mempool
 #include "lru.hh"
 #include "pat.hh"
-#ifdef SERVER
 #include "storage/GroundDB/rdma_server.hh"
-#else
 #include "storage/GroundDB/rdma_client.hh"
-#endif
