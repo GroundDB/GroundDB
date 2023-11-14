@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 #include "c.h"
 #include "access/logindex_hashmap.h"
 #include "storage/bufpage.h"
@@ -25,15 +26,6 @@ class page_address_table {
 public:
     std::unordered_map<KeyType, uintptr_t, KeyTypeHashFunction, KeyTypeEqualFunction> pat;
     page_address_table(){}
-};
-
-// Now only support single compute node and single simultaneous request
-class request_buffer {
-public:
-    uint8_t *content_;
-    size_t size_;
-    request_buffer(size_t size): content_(new uint8_t[size]), size_(size) {}
-    ~request_buffer() {delete[] content_;}
 };
 
 int allocate_page(struct memory_region *&memreg, struct resources *res, const char* src, size_t page_cnt, size_t page_size = BLCKSZ);

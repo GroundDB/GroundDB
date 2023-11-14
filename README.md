@@ -12,6 +12,7 @@
 
    ```
    cd postgresql-13.0/src
+   git init
    git remote add origin git@github.com:GroundDB/GroundDB.git
    git fetch
    git reset --hard origin/$TAG

@@ -1,25 +1,18 @@
 #-------------------------------------------------------------------------
 #
 # Makefile--
-#    Makefile for storage/GroundDB
+#    Makefile for storage/DSMEngine
 #
 # IDENTIFICATION
-#    src/backend/storage/GroundDB/Makefile
+#    src/backend/storage/DSMEngine/Makefile
 #
 #-------------------------------------------------------------------------
 
-subdir = src/backend/storage/GroundDB
+subdir = src/backend/storage/DSMEngine
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
 OBJS = \
-	allocate_page.o \
-	connect.o \
-	init_server.o \
-	mempool_server.o \
-	pat.o \
-	read.o \
-	util.o \
-	write.o
+	cache.o
 
 include $(top_srcdir)/src/backend/common.mk

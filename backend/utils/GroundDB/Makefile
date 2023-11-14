@@ -1,25 +1,21 @@
 #-------------------------------------------------------------------------
 #
 # Makefile--
-#    Makefile for storage/GroundDB
+#    Makefile for utils/GroundDB
 #
 # IDENTIFICATION
-#    src/backend/storage/GroundDB/Makefile
+#    src/backend/utils/GroundDB/Makefile
 #
 #-------------------------------------------------------------------------
 
-subdir = src/backend/storage/GroundDB
+subdir = src/backend/utils/GroundDB
 top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
 OBJS = \
-	allocate_page.o \
-	connect.o \
-	init_server.o \
-	mempool_server.o \
-	pat.o \
-	read.o \
-	util.o \
-	write.o
+	hash.o \
+	mutexlock.o
+
+override CPPFLAGS += -DDLSUFFIX=\"$(DLSUFFIX)\"
 
 include $(top_srcdir)/src/backend/common.mk

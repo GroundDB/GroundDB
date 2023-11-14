@@ -13,7 +13,7 @@ namespace mempool
 
     int rdma_fetch(
         const struct resources *res, /* RDMA Connection resources */
-        const struct memory_region *memreg,
+        struct memory_region *memreg,
         const struct connection *conn,
         const size_t lofs = 0,  /* offset in local memory region */
         const size_t size = -1, /* number of bytes to read. -1 if entire menreg is to read */
@@ -22,7 +22,7 @@ namespace mempool
 
     int rdma_flush(
         const struct resources *res, /* RDMA Connection resources */
-        const struct memory_region *memreg,
+        struct memory_region *memreg,
         const struct connection *conn,
         const size_t lofs = 0,  /* offset in local memory region */
         const size_t size = -1, /* number of bytes to write. -1 denotes entire memreg */
@@ -39,7 +39,7 @@ namespace mempool
     // Get the page's remote address and LSN, -1 if not found
     std::pair<uintptr_t, uint64_t> get_page_address_from_mempool(
         const struct resources *res,
-        const struct memory_region *mr,
+        struct memory_region *mr,
         const struct connection *conn,
         KeyType page_id
     );
