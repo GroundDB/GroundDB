@@ -60,7 +60,7 @@ struct resources *connectServer(
     fprintf(stdout, "Connection verified\n");
     // Remove until here
 
-    auto pat_req_buf = new request_buffer(10, 10, 1<<20);
+    auto pat_req_buf = new request_buffer(res, memreg, sizeof(flush_page_request), sizeof(flush_page_response), 32);
     init_pat_access_on_client(res, pat_req_buf, server_name, tcp_port, ib_port);
     return res;
 }
