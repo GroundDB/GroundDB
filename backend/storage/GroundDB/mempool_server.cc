@@ -2,17 +2,19 @@
 #include "storage/GroundDB/mempool_server.h"
 #include "storage/GroundDB/rdma_server.hh"
 
-void
-MemPoolMain(int argc, char *argv[],
-              const char *dbname,
-              const char *username) {
+void MemPoolMain(int argc, char *argv[], const char *dbname, const char *username) {
     auto mempool = new mempool::MemPoolManager();
-    mempool->init_resources(122189, NULL, 1);
+    struct DSMEngine::config_t config = {
+            NULL, /* dev_name */
+            NULL, /* server_name */
+            122189, /* tcp_port */
+            1, /* ib_port */
+            1, /* gid_idx */
+            0,
+            1};
+    // mempool->init_resources(config.tcp_port, config.dev_name, config.ib_port);
+    mempool->init_rdma_manager(88, config);
     mempool->init_thread_pool(10);
     mempool->allocate_page_array(1 << 15);
-    mempool->init_flush_page_reqbuf();
-    mempool->init_access_page_reqbuf();
-    mempool->init_sync_pat_reqbuf();
-    while(true)
-        usleep(1000);
+    mempool->Server_to_Client_Communication();
 }
