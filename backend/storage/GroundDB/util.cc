@@ -746,10 +746,10 @@ int connect_qp(struct connection *&conn, struct resources *res, struct memory_re
     qp_init_attr.sq_sig_all = 1;
     qp_init_attr.send_cq = memreg->cq;
     qp_init_attr.recv_cq = memreg->cq;
-    qp_init_attr.cap.max_send_wr = 1;
-    qp_init_attr.cap.max_recv_wr = 1;
-    qp_init_attr.cap.max_send_sge = 1;
-    qp_init_attr.cap.max_recv_sge = 1;
+    qp_init_attr.cap.max_send_wr = 2500;
+    qp_init_attr.cap.max_recv_wr = 2500;
+    qp_init_attr.cap.max_send_sge = 30;
+    qp_init_attr.cap.max_recv_sge = 30;
     conn->qp = ibv_create_qp(res->pd, &qp_init_attr);
     if (!conn->qp)
     {

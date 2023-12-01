@@ -14,7 +14,8 @@ include $(top_builddir)/src/Makefile.global
 
 OBJS = \
 	hash.o \
-	mutexlock.o
+	mutexlock.o \
+	thread_local.o
 
 override CPPFLAGS += -DDLSUFFIX=\"$(DLSUFFIX)\"
 

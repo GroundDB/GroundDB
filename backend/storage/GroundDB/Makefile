@@ -17,7 +17,6 @@ OBJS = \
 	connect.o \
 	init_server.o \
 	mempool_server.o \
-	pat.o \
 	read.o \
 	util.o \
 	write.o

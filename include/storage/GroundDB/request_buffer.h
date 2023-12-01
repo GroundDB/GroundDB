@@ -4,6 +4,10 @@
 #include "storage/GroundDB/util.h"
 #include "storage/DSMEngine/ThreadPool.h"
 
+namespace DSMEngine{
+	struct RDMA_Request;
+}
+
 namespace mempool{
 
 struct flush_page_request{
@@ -28,6 +32,12 @@ struct sync_pat_request{
 // Now only support fixed size
 struct sync_pat_response{
 	KeyType page_id_array[4096];
+};
+
+struct request_handler_args{
+	DSMEngine::RDMA_Request* request;
+	std::string client_ip;
+	uint16_t compute_node_id;
 };
 
 class request_buffer {
