@@ -31,6 +31,13 @@ uint64_t latency[MAX_APP_THREAD][LATENCY_WINDOWS];
 extern bool Show_Me_The_Print;
 int TimePrintCounter[MAX_APP_THREAD];
 namespace DSMEngine {
+
+bool KeyTypeCmp (const KeyType& a, const KeyType& b) {
+    return a.SpcID == b.SpcID && a.DbID == b.DbID && a.RelID == b.RelID
+        && a.ForkNum == b.ForkNum && a.BlkNum == b.BlkNum;
+}
+
+
 //std::atomic<uint64_t> LRUCache::counter = 0;
 Cache::~Cache() {}
 
