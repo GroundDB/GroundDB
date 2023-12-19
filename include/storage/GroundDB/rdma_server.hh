@@ -46,6 +46,7 @@ public:
     void flush_page_handler(void* args);
     void access_page_handler(void* args);
     void sync_pat_handler(void* args);
+    void mr_info_handler(void* args);
 };
 
 

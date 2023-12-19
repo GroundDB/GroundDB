@@ -40,7 +40,7 @@ void MemPoolManager::Server_to_Client_Communication() {
 int MemPoolManager::server_sock_connect(const char* servername, int port) {
     struct addrinfo* resolved_addr = NULL;
     struct addrinfo* iterator;
-    char service[6];
+    char service[10];
     int sockfd = -1;
     int listenfd = 0;
     struct sockaddr address;
@@ -187,6 +187,9 @@ void MemPoolManager::server_communication_thread(std::string client_ip, int sock
         } else if (receive_msg_buf->command == DSMEngine::sync_pat_) {
             std::function<void(void *args)> handler = [this](void *args){this->sync_pat_handler(args);};
             thrd_pool->Schedule(std::move(handler), (void*)&req_args, rand() % thrd_pool->total_threads_limit_);
+        } else if (receive_msg_buf->command == DSMEngine::mr_info_) {
+            std::function<void(void *args)> handler = [this](void *args){this->mr_info_handler(args);};
+            thrd_pool->Schedule(std::move(handler), (void*)&req_args, rand() % thrd_pool->total_threads_limit_);
         } else {
             printf("corrupt message from client. %d\n", receive_msg_buf->command);
             assert(false);
@@ -254,8 +257,8 @@ void MemPoolManager::init_thread_pool(size_t thrd_num){
 }
 
 void MemPoolManager::allocate_page_array(size_t pa_size){
-    rdma_mg->Mempool_initialize(DSMEngine::PageArray, BLCKSZ, pa_size);
-    rdma_mg->Mempool_initialize(DSMEngine::PageIDArray, sizeof(KeyType), pa_size);
+    rdma_mg->Mempool_initialize(DSMEngine::PageArray, BLCKSZ, BLCKSZ * pa_size);
+    rdma_mg->Mempool_initialize(DSMEngine::PageIDArray, sizeof(KeyType), sizeof(KeyType) * pa_size);
 
     // struct memory_region *pa = nullptr;
     // allocate_page(pa, res, nullptr, pa_size);
@@ -269,8 +272,8 @@ void MemPoolManager::allocate_page_array(size_t pa_size){
 
     ibv_mr *pa_mr, *pida_mr;
     char *pa_buf, *pida_buf;
-    rdma_mg->Local_Memory_Register(&pa_buf, &pa_mr, pa_size * BLCKSZ, DSMEngine::PageArray);
-    rdma_mg->Local_Memory_Register(&pida_buf, &pida_mr, sizeof(KeyType) * BLCKSZ, DSMEngine::PageIDArray);
+    rdma_mg->Local_Memory_Register(&pa_buf, &pa_mr, BLCKSZ * pa_size, DSMEngine::PageArray);
+    rdma_mg->Local_Memory_Register(&pida_buf, &pida_mr, sizeof(KeyType) * pa_size, DSMEngine::PageIDArray);
     
     freelist.init();
     lru = DSMEngine::NewLRUCache(pa_size, &freelist);
@@ -310,8 +313,9 @@ void MemPoolManager::flush_page_handler(void* args){
     res->successful = true;
 
     send_pointer->received = true;
-    rdma_mg->RDMA_Write(request->buffer, request->rkey, &send_mr,
-                        sizeof(DSMEngine::RDMA_Reply), client_ip, IBV_SEND_SIGNALED, 1, target_node_id);
+    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, 0);
+    ibv_wc wc[3] = {};
+    rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
     delete request;
 }
@@ -358,6 +362,29 @@ void MemPoolManager::sync_pat_handler(void* args){
     send_pointer->received = true;
     rdma_mg->RDMA_Write(request->buffer, request->rkey, &send_mr,
                         sizeof(DSMEngine::RDMA_Reply), client_ip, IBV_SEND_SIGNALED, 1, target_node_id);
+    rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
+    delete request;
+}
+
+void MemPoolManager::mr_info_handler(void* args){
+    auto Args = (struct request_handler_args*)args;
+    auto request = Args->request;
+    auto client_ip = Args->client_ip;
+    auto target_node_id = Args->compute_node_id;
+    auto req = &request->content.mr_info;
+
+    ibv_mr send_mr;
+    rdma_mg->Allocate_Local_RDMA_Slot(send_mr, DSMEngine::Message);
+    auto send_pointer = (DSMEngine::RDMA_Reply*)send_mr.addr;
+    auto res = &send_pointer->content.mr_info;
+
+    memcpy(&res->pa_mr, page_arrays[req->pa_idx].pa_mr, sizeof(ibv_mr));
+    memcpy(&res->pida_mr, page_arrays[req->pa_idx].pida_mr, sizeof(ibv_mr));
+
+    send_pointer->received = true;
+    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, 0);
+    ibv_wc wc[3] = {};
+    rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
     delete request;
 }
