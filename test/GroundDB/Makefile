@@ -20,10 +20,15 @@ include $(top_srcdir)/src/backend/common.mk
 
 OBJS = \
 	$(SUBDIROBJS) \
-	$(top_srcdir)/src/backend/port/port_posix.o \
-	GroundDB_test.o
+	$(top_srcdir)/src/backend/port/port_posix.o
 
-all: GroundDB_test
+all: GroundDB_test MemPool_server_test MemPool_client_test
 
-GroundDB_test: $(OBJS)
+GroundDB_test: $(OBJS) GroundDB_test.o
+	$(CC) $(CFLAGS) $(call expand_subsys,$^) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@
+
+MemPool_server_test: $(OBJS) MemPool_server_test.o
+	$(CC) $(CFLAGS) $(call expand_subsys,$^) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@
+
+MemPool_client_test: $(OBJS) MemPool_client_test.o
 	$(CC) $(CFLAGS) $(call expand_subsys,$^) $(LDFLAGS) $(LDFLAGS_EX) $(LIBS) -o $@
