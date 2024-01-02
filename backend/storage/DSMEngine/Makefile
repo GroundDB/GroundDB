@@ -14,6 +14,7 @@ include $(top_builddir)/src/Makefile.global
 
 OBJS = \
 	cache.o \
-	rdma_manager.o
+	rdma_manager.o \
+	ThreadPool.o
 
 include $(top_srcdir)/src/backend/common.mk

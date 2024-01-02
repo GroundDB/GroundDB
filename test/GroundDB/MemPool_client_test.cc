@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
 	uint8_t page_data[BLCKSZ];
     int buffer_position = 0;
     
-    // std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     for(int i=0; i<100000; i++){
         rdma_mg->post_receive<DSMEngine::RDMA_Reply>(&recv_mr[buffer_position], 1);
         
@@ -47,10 +47,10 @@ int main(int argc, char** argv) {
         auto res = (DSMEngine::RDMA_Reply*)recv_mr[buffer_position].addr;
         buffer_position = (buffer_position + 1) % RECEIVE_OUTSTANDING_SIZE;
         rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
-        // std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        // std::chrono::steady_clock::duration elapsed = end - start;
-        // long long elapsed_seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-        // if(i%1000 == 0)printf("%d;  %lf\n",i,(double)i/elapsed_seconds);
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::duration elapsed = end - start;
+        long long elapsed_seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        if(i%10000 == 0)printf("Flushed %d pages;  Throughput: %lf pages/ms\n",i,(double)i/elapsed_seconds);
     }
     ibv_mr remote_pa_mr, remote_pida_mr;
     for(int i=0; i<1; i++){
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         buffer_position = (buffer_position + 1) % RECEIVE_OUTSTANDING_SIZE;
         rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
     }
-    // start = std::chrono::steady_clock::now();
+    start = std::chrono::steady_clock::now();
     for(int i=0; i<100000; i++){
         ibv_mr pa_mr, pida_mr;
         rdma_mg->Allocate_Local_RDMA_Slot(pa_mr, DSMEngine::PageArray);
@@ -91,10 +91,10 @@ int main(int argc, char** argv) {
         // if(i%1000 == 0)printf("One-Sided Read Page ID: %ld %ld %ld %ld %ld\n", res_id->SpcID, res_id->DbID, res_id->RelID, res_id->ForkNum, res_id->BlkNum);
         rdma_mg->Deallocate_Local_RDMA_Slot(pa_mr.addr, DSMEngine::PageArray);
         rdma_mg->Deallocate_Local_RDMA_Slot(pida_mr.addr, DSMEngine::PageIDArray);
-        // std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        // std::chrono::steady_clock::duration elapsed = end - start;
-        // long long elapsed_seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
-        // if(i%1000 == 0)printf("%d;  %lf\n",i,(double)i/elapsed_seconds);
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::duration elapsed = end - start;
+        long long elapsed_seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+        if(i%1000 == 0)printf("RDMA-Read %d pages;  Throughput: %lf pages/ms\n",i,(double)i/elapsed_seconds);
     }
     return 0;
 }

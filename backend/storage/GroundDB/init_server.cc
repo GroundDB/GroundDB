@@ -302,8 +302,7 @@ void MemPoolManager::flush_page_handler(void* args){
     auto send_pointer = (DSMEngine::RDMA_Reply*)send_mr.addr;
     auto res = &send_pointer->content.flush_page;
 
-    auto e = lru->LookupInsert(req->page_id, nullptr, 1,
-        [](DSMEngine::Cache::Handle* handle){});
+    auto e = lru->LookupInsert(req->page_id, nullptr, 1, nullptr);
     auto pagemeta = (PageMeta*)e->value;
     std::unique_lock<std::shared_mutex> lk(e->rw_mtx);
     memcpy(pagemeta->page_addr, req->page_data, BLCKSZ);
