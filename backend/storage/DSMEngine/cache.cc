@@ -31,6 +31,13 @@ uint64_t latency[MAX_APP_THREAD][LATENCY_WINDOWS];
 extern bool Show_Me_The_Print;
 int TimePrintCounter[MAX_APP_THREAD];
 namespace DSMEngine {
+
+bool KeyTypeCmp (const KeyType& a, const KeyType& b) {
+    return a.SpcID == b.SpcID && a.DbID == b.DbID && a.RelID == b.RelID
+        && a.ForkNum == b.ForkNum && a.BlkNum == b.BlkNum;
+}
+
+
 //std::atomic<uint64_t> LRUCache::counter = 0;
 Cache::~Cache() {}
 
@@ -83,8 +90,9 @@ void LRUCache::Unref(LRUHandle *e, SpinLock *spin_l) {
           spin_l->Unlock();
       }
 #endif
-      assert(!e->in_cache);
-    (*e->deleter)(e);
+    assert(!e->in_cache);
+    if(e->deleter != nullptr)
+      (*e->deleter)(e);
     delete e;
   } else if (e->in_cache && e->refs == 1) {
     // No longer in use; move to lru_ list.
@@ -350,10 +358,9 @@ class ShardedLRUCache : public Cache {
 
  public:
   explicit ShardedLRUCache(size_t capacity, mempool::FreeList* fl) : last_id_(0), freelist_(fl) {
-    const size_t per_shard = (capacity + (kNumShards - 1)) / kNumShards;
     capacity_ = capacity;
     for (int s = 0; s < kNumShards; s++) {
-      shard_[s].SetCapacity(per_shard);
+      shard_[s].SetCapacity((capacity + s) / kNumShards);
       shard_[s].freelist_ = fl;
     }
   }

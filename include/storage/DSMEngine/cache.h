@@ -32,6 +32,7 @@ namespace DSMEngine {
 //class RDMA_Manager;
 //class ibv_mr;
 
+bool KeyTypeCmp (const KeyType& a, const KeyType& b);
 
     // LRU table_cache implementation
 //
@@ -241,7 +242,7 @@ private:
     // pointer to the trailing slot in the corresponding linked list.
     LRUHandle** FindPointer(KeyType key, uint32_t hash) {
         LRUHandle** ptr = &list_[hash & (length_ - 1)];
-        while (*ptr != nullptr && ((*ptr)->hash != hash || key != (*ptr)->key())) {
+        while (*ptr != nullptr && ((*ptr)->hash != hash || !KeyTypeCmp(key, (*ptr)->key()))) {
             ptr = &(*ptr)->next_hash;
         }
         // This iterator will stop at the LRUHandle whose next_hash is nullptr or its nexthash's

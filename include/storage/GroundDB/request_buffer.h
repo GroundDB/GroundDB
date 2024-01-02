@@ -31,7 +31,15 @@ struct sync_pat_request{
 };
 // Now only support fixed size
 struct sync_pat_response{
-	KeyType page_id_array[4096];
+	KeyType page_id_array[256];
+};
+
+struct mr_info_request{
+	size_t pa_idx;
+};
+struct mr_info_response{
+	ibv_mr pa_mr;
+	ibv_mr pida_mr;
 };
 
 struct request_handler_args{

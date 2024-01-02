@@ -122,6 +122,8 @@ enum RDMA_Command_Type {
     flush_page_,
     access_page_,
     sync_pat_,
+    mr_info_,
+/*******/
     create_qp_,
     create_mr_,
     near_data_compaction,
@@ -158,6 +160,8 @@ union RDMA_Request_Content {
     mempool::flush_page_request flush_page;
     mempool::access_page_request access_page;
     mempool::sync_pat_request sync_pat;
+    mempool::mr_info_request mr_info;
+/******/
     size_t mem_size;
     Registered_qp_config qp_config;
     Registered_qp_config_xcompute qp_config_xcompute;
@@ -176,6 +180,8 @@ union RDMA_Reply_Content {
     mempool::flush_page_response flush_page;
     mempool::access_page_response access_page;
     mempool::sync_pat_response sync_pat;
+    mempool::mr_info_response mr_info;
+/********/
     ibv_mr mr;
     Registered_qp_config qp_config;
     Registered_qp_config_xcompute qp_config_xcompute;
@@ -393,7 +399,7 @@ public:
     bool Remote_Query_Pair_Connection(std::string& qp_type, uint16_t target_node_id);    // Only called by client.
     int RDMA_Read(GlobalAddress remote_ptr, ibv_mr *local_mr, size_t msg_size, size_t send_flag, int poll_num,
         Chunk_type pool_name, std::string qp_type = "default");
-    int RDMA_Read(ibv_mr *remote_mr, ibv_mr *local_mr, size_t msg_size, size_t send_flag, int poll_num,
+    int RDMA_Read(ibv_mr *remote_mr, ibv_mr *local_mr, uint64_t remote_offset, size_t msg_size, size_t send_flag, int poll_num,
         uint16_t target_node_id, std::string qp_type = "default");
         // TODO: implement this kind of RDMA operation for every primitive.
     int RDMA_Write(GlobalAddress remote_ptr, ibv_mr *local_mr, size_t msg_size, size_t send_flag, int poll_num,
@@ -516,8 +522,7 @@ public:
 //        std::atomic<int> invalidation_threads_start_sync = 0;
     // TODO: replace the std::map<void*, In_Use_Array*> as a thread local vector of In_Use_Array*, so that
     // the conflict can be minimized.
-    std::unordered_map<Chunk_type, std::map<void*, In_Use_Array*>>
-            name_to_mem_pool;
+    std::unordered_map<Chunk_type, std::map<void*, In_Use_Array*>> name_to_mem_pool;
     std::unordered_map<Chunk_type, size_t> name_to_chunksize;
     std::unordered_map<Chunk_type, size_t> name_to_allocated_size;
     std::shared_mutex local_mem_mutex;
@@ -659,6 +664,7 @@ public:
 
     int post_send(ibv_mr** mr_list, size_t sge_size, std::string qp_type,
                 uint16_t target_node_id);
+public:
     template <typename T>
     int post_receive(ibv_mr* mr, uint16_t target_node_id, std::string qp_type = "main") {
         struct ibv_recv_wr rr;
