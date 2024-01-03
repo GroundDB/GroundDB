@@ -14,9 +14,9 @@ include $(top_builddir)/src/Makefile.global
 
 OBJS = \
 	allocate_page.o \
-	connect.o \
-	init_server.o \
 	mempool_server.o \
+	rdma_client.o \
+	rdma_server.o \
 	read.o \
 	util.o \
 	write.o
