@@ -2,7 +2,6 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
-#include "storage/GroundDB/pat.hh"
 #include "storage/GroundDB/lru.hh"
 #include "storage/GroundDB/request_buffer.h"
 #include "storage/DSMEngine/ThreadPool.h"
