@@ -3166,8 +3166,8 @@ void RDMA_Manager::print_config() {
     fprintf(stdout, " ------------------------------------------------\n");
     fprintf(stdout, " Device name : \"%s\"\n", rdma_config.dev_name);
     fprintf(stdout, " IB port : %u\n", rdma_config.ib_port);
-    if (rdma_config.server_name)
-        fprintf(stdout, " IP : %s\n", rdma_config.server_name);
+    // if (rdma_config.server_name)
+    //     fprintf(stdout, " IP : %s\n", rdma_config.server_name);
     fprintf(stdout, " TCP port : %u\n", rdma_config.tcp_port);
     if (rdma_config.gid_idx >= 0)
         fprintf(stdout, " GID index : %u\n", rdma_config.gid_idx);
