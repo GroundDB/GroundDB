@@ -1,8 +1,6 @@
 #include <fstream>
 #include <thread>
 #include "storage/GroundDB/mempool_server.h"
-#include "storage/GroundDB/rdma.hh"
-#include "storage/GroundDB/util.h"
 #include "storage/GroundDB/rdma_server.hh"
 #include "storage/DSMEngine/ThreadPool.h"
 #include "storage/DSMEngine/cache.h"
