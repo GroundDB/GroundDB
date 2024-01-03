@@ -13,8 +13,8 @@ top_builddir = ../../../..
 include $(top_builddir)/src/Makefile.global
 
 OBJS = \
-	allocate_page.o \
 	mempool_server.o \
+	pat.o \
 	rdma_client.o \
 	rdma_server.o \
 	read.o \
