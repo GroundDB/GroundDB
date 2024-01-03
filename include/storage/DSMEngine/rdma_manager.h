@@ -66,7 +66,7 @@ static char config_file_name[100] = "../connection.conf";
 
 struct config_t {
     const char* dev_name;        /* IB device name */
-    const char* server_name; /* server host name */
+    // const char* server_name; /* server host name */
     u_int32_t tcp_port;            /* server TCP port */
     int ib_port; /* local IB port to work with, or physically port number */
     int gid_idx; /* gid index to use */

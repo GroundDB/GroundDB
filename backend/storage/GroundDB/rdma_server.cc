@@ -33,7 +33,7 @@ void MemPoolManager::init_rdma_manager(int pr_s, DSMEngine::config_t &config){
 }
 
 void MemPoolManager::Server_to_Client_Communication() {
-    server_sock_connect(rdma_mg->rdma_config.server_name, rdma_mg->rdma_config.tcp_port);
+    server_sock_connect(nullptr, rdma_mg->rdma_config.tcp_port);
 }
 int MemPoolManager::server_sock_connect(const char* servername, int port) {
     struct addrinfo* resolved_addr = NULL;
@@ -257,16 +257,6 @@ void MemPoolManager::init_thread_pool(size_t thrd_num){
 void MemPoolManager::allocate_page_array(size_t pa_size){
     rdma_mg->Mempool_initialize(DSMEngine::PageArray, BLCKSZ, BLCKSZ * pa_size);
     rdma_mg->Mempool_initialize(DSMEngine::PageIDArray, sizeof(KeyType), sizeof(KeyType) * pa_size);
-
-    // struct memory_region *pa = nullptr;
-    // allocate_page(pa, res, nullptr, pa_size);
-
-    // struct connection *conn = nullptr;
-    // if (connect_qp(conn, res, pa, NULL, tcp_port, -1, ib_port))
-    // {
-    //     fprintf(stderr, "failed to connect QPs\n");
-    //     exit(1);
-    // }
 
     ibv_mr *pa_mr, *pida_mr;
     char *pa_buf, *pida_buf;

@@ -6,7 +6,6 @@ void MemPoolMain(int argc, char *argv[], const char *dbname, const char *usernam
     auto mempool = new mempool::MemPoolManager();
     struct DSMEngine::config_t config = {
             NULL, /* dev_name */
-            NULL, /* server_name */
             122189, /* tcp_port */
             1, /* ib_port */
             1, /* gid_idx */

@@ -4,10 +4,8 @@
 
 int main(int argc, char** argv) {
     uint32_t tcp_port = 19843;
-    uint32_t size = 8*1024;
     struct DSMEngine::config_t config = {
             NULL,  /* dev_name */
-            "db1.cs.purdue.edu",  /* server_name */
             tcp_port, /* tcp_port */
             1,	 /* ib_port */
             1, /* gid_idx */

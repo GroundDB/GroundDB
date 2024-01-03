@@ -108,10 +108,8 @@ namespace DSMEngine {
     protected:
         void SetUp() override {
             uint32_t tcp_port = 19843;
-            uint32_t size = 8*1024;
             struct DSMEngine::config_t config = {
                     NULL,  /* dev_name */
-                    NULL,  /* server_name */
                     tcp_port, /* tcp_port */
                     1,	 /* ib_port */
                     1, /* gid_idx */
