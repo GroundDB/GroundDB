@@ -28,6 +28,12 @@ bool KeyTypeEqualFunction::operator() (const KeyType &key1, const KeyType &key2)
         && key1.BlkNum == key2.BlkNum;
 }
 
+size_t PageAddressTable::page_array_count(){
+	return idx_to_pid.size();
+}
+size_t PageAddressTable::page_array_size(size_t pa_idx){
+	return idx_to_pid[pa_idx].size();
+}
 void PageAddressTable::append_page_array(size_t pa_size, const ibv_mr& pa_mr, const ibv_mr& pida_mr){
 	std::unique_lock<std::shared_mutex> lk(mtx);
 	idx_to_pid.emplace_back();

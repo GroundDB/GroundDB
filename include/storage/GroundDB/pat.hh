@@ -27,6 +27,8 @@ class PageAddressTable{
 	std::vector<std::vector<KeyType>> idx_to_pid;
 	std::vector<std::pair<ibv_mr, ibv_mr>> idx_to_mr;
 public:
+	size_t page_array_count();
+	size_t page_array_size(size_t pa_idx);
 	void append_page_array(size_t pa_size, const ibv_mr& pa_mr, const ibv_mr& pida_mr);
 	void at(KeyType pid, RDMAReadPageInfo& info);
 	void update(size_t pa_idx, size_t pa_ofs, KeyType pid);
