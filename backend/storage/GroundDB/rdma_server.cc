@@ -343,7 +343,7 @@ void MemPoolManager::sync_pat_handler(void* args){
     auto res = &send_pointer->content.sync_pat;
 
     auto&page_array = page_arrays[req->pa_idx];
-    for(int i = 0; req->pa_ofs + i < page_array.size && i < 4096; i++)
+    for(int i = 0; req->pa_ofs + i < page_array.size && i < SYNC_PAT_SIZE; i++)
         res->page_id_array[i] = *(KeyType*)(page_array.pida_buf + (req->pa_ofs + i) * sizeof(KeyType));
 
     send_pointer->received = true;

@@ -30,8 +30,9 @@ struct sync_pat_request{
 	size_t pa_ofs;
 };
 // Now only support fixed size
+#define SYNC_PAT_SIZE 256
 struct sync_pat_response{
-	KeyType page_id_array[256];
+	KeyType page_id_array[SYNC_PAT_SIZE];
 };
 
 struct mr_info_request{
