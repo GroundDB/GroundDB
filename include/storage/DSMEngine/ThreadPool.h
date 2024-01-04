@@ -36,7 +36,7 @@ class ThreadPool{
   std::atomic<bool> wait_for_jobs_to_complete_;
   void BGThread(uint32_t thread_id);
   void StartBGThreads();
-  void Schedule(std::function<void(void *args)> &&func, void *args, uint32_t thread_id);
+  void Schedule(std::function<void(void *args)> &&func, void *args, uint32_t thread_id = -1);
   void JoinThreads(bool wait_for_jobs_to_complete);
   void SetBackgroundThreads(int num);
 };

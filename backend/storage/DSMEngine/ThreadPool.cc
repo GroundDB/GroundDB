@@ -63,7 +63,7 @@ void ThreadPool::Schedule(std::function<void(void *args)> &&func, void *args, ui
 	item.function = std::move(func);
 	item.args = std::move(args);
 	// Add to priority queue
-	queue_pool[thread_id]->push(item);
+	queue_pool[thread_id == -1 ? rand() % total_threads_limit_ : thread_id]->push(item);
 }
 
 void ThreadPool::JoinThreads(bool wait_for_jobs_to_complete) {

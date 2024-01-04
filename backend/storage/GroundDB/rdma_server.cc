@@ -178,16 +178,16 @@ void MemPoolManager::server_communication_thread(std::string client_ip, int sock
         };
         if (receive_msg_buf->command == DSMEngine::flush_page_) {
             std::function<void(void *args)> handler = [this](void *args){this->flush_page_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args, rand() % thrd_pool->total_threads_limit_);
+            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
         } else if (receive_msg_buf->command == DSMEngine::access_page_) {
             std::function<void(void *args)> handler = [this](void *args){this->access_page_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args, rand() % thrd_pool->total_threads_limit_);
+            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
         } else if (receive_msg_buf->command == DSMEngine::sync_pat_) {
             std::function<void(void *args)> handler = [this](void *args){this->sync_pat_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args, rand() % thrd_pool->total_threads_limit_);
+            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
         } else if (receive_msg_buf->command == DSMEngine::mr_info_) {
             std::function<void(void *args)> handler = [this](void *args){this->mr_info_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args, rand() % thrd_pool->total_threads_limit_);
+            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
         } else {
             printf("corrupt message from client. %d\n", receive_msg_buf->command);
             assert(false);
