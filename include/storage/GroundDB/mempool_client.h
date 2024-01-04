@@ -25,11 +25,11 @@ extern bool LsnIsSatisfied(PageXLogRecPtr PageLSN);
 
 extern void ReplayXLog();
 
-extern void AsyncAccessPageOnMemoryPool();
+extern void AsyncAccessPageOnMemoryPool(KeyType PageID);
 
 extern void AsyncGetNewestPageAddressTable();
 
-extern void AsyncFlushPageToMemoryPool();
+extern void AsyncFlushPageToMemoryPool(char* src, KeyType PageID);
 
 
 #ifdef __cplusplus

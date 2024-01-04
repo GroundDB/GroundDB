@@ -921,7 +921,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 						if(LsnIsSatisfied(((PageHeader)bufBlock)->pd_lsn)){
 							read_from_mempool = true;
 							ReplayXLog();
-							AsyncAccessPageOnMemoryPool();
+							AsyncAccessPageOnMemoryPool(page_id);
 						}
 					}
 					else
@@ -929,7 +929,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 				}
 				if(!read_from_mempool){
 					RpcReadBuffer_common((char*)bufBlock, smgr, relpersistence, forkNum, blockNum, mode);
-					AsyncFlushPageToMemoryPool();
+					AsyncFlushPageToMemoryPool((char*)bufBlock, page_id);
 				}
 			}
 			else
