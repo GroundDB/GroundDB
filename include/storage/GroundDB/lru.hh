@@ -2,7 +2,6 @@
 #include <list>
 #include <memory>
 #include <mutex>
-#include "storage/GroundDB/pat.hh"
 
 namespace mempool {
 

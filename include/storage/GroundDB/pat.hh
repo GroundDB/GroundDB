@@ -2,6 +2,7 @@
 #include "c.h"
 #include "access/logindex_hashmap.h"
 #include "storage/bufpage.h"
+#include "storage/GroundDB/mempool_client.h"
 
 // todo: OpenAurora/include/port.h define following macros which causes link error. We undef them for now.
 #undef printf
@@ -10,6 +11,25 @@
 
 namespace mempool{
 
-int allocate_page(struct memory_region *&memreg, struct resources *res, const char* src, size_t page_cnt, size_t page_size = BLCKSZ);
+class KeyTypeHashFunction{
+public:
+    uint32_t operator() (const KeyType &key) const;
+};
+class KeyTypeEqualFunction{
+public:
+    bool operator() (const KeyType &key1, const KeyType &key2) const;
+};
+#define nullKeyType ((KeyType){(uint64_t)-1, (uint64_t)-1, (uint64_t)-1, (uint32_t)-1, -1})
+
+class PageAddressTable{
+	std::shared_mutex mtx;
+	std::unordered_map<KeyType, std::pair<size_t, size_t>, KeyTypeHashFunction, KeyTypeEqualFunction> pid_to_idx;
+	std::vector<std::vector<KeyType>> idx_to_pid;
+	std::vector<std::pair<ibv_mr, ibv_mr>> idx_to_mr;
+public:
+	void append_page_array(size_t pa_size, const ibv_mr& pa_mr, const ibv_mr& pida_mr);
+	void at(KeyType pid, RDMAReadPageInfo& info);
+	void update(size_t pa_idx, size_t pa_ofs, KeyType pid);
+};
 
 } // namespace mempool
