@@ -5,6 +5,9 @@
 
 namespace mempool{
 
+typedef std::unordered_map<KeyType, std::list<XLogRecPtr>, KeyTypeHashFunction, KeyTypeEqualFunction>
+	VersionMap;
+
 class MemPoolClient{
 public:
     MemPoolClient();
@@ -18,6 +21,8 @@ public:
     std::vector<std::thread> threads;
     PageAddressTable pat;
     DSMEngine::ThreadPool* thrd_pool;
+	VersionMap vm;
+	std::shared_mutex vm_mtx;
 };
 
 MemPoolClient::MemPoolClient(){
@@ -227,4 +232,143 @@ void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
 	};
 	struct Args a = {src, PageID};
 	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)&a);
+}
+
+void UpdateVersionMap(XLogRecord* record, XLogRecPtr lsn){
+	auto& vm = mempool::MemPoolClient::Get_Instance()->vm;
+	auto& vm_mtx = mempool::MemPoolClient::Get_Instance()->vm_mtx;
+#define COPY_HEADER_FIELD(_dst, _size)			\
+	do {										\
+		Assert (remaining >= _size);			\
+		memcpy(_dst, ptr, _size);				\
+		ptr += _size;							\
+		remaining -= _size;						\
+	} while(0)
+#define SKIP_HEADER_FIELD(_size)				\
+	do {										\
+		Assert (remaining >= _size);			\
+		ptr += _size;							\
+		remaining -= _size;						\
+	} while(0)
+
+	auto ptr = (char*)record;
+	uint32		remaining;
+	uint32		datatotal;
+	RelFileNode *rnode = NULL;
+	uint8		block_id;
+	int max_block_id = -1;
+	DecodedBkpBlock blk[0];
+
+	ptr += SizeOfXLogRecord;
+	remaining = record->xl_tot_len - SizeOfXLogRecord;
+
+	/* Decode the headers */
+	datatotal = 0;
+	while (remaining > datatotal)
+	{
+		COPY_HEADER_FIELD(&block_id, sizeof(uint8));
+
+		if (block_id == XLR_BLOCK_ID_DATA_SHORT)
+		{
+			uint8		main_data_len;
+			COPY_HEADER_FIELD(&main_data_len, sizeof(uint8));
+			datatotal += main_data_len;
+			break;
+		}
+		else if (block_id == XLR_BLOCK_ID_DATA_LONG)
+		{
+			uint32		main_data_len;
+			COPY_HEADER_FIELD(&main_data_len, sizeof(uint32));
+			datatotal += main_data_len;
+			break;
+		}
+		else if (block_id == XLR_BLOCK_ID_ORIGIN)
+		{
+			SKIP_HEADER_FIELD(sizeof(RepOriginId));
+		}
+		else if (block_id <= XLR_MAX_BLOCK_ID)
+		{
+			/* XLogRecordBlockHeader */
+			uint8		fork_flags;
+
+			if (block_id <= max_block_id) Assert(false);
+			max_block_id = block_id;
+
+			blk->in_use = true;
+			blk->apply_image = false;
+
+			COPY_HEADER_FIELD(&fork_flags, sizeof(uint8));
+			blk->forknum = (ForkNumber)(fork_flags & BKPBLOCK_FORK_MASK);
+			blk->flags = fork_flags;
+			blk->has_image = ((fork_flags & BKPBLOCK_HAS_IMAGE) != 0);
+			blk->has_data = ((fork_flags & BKPBLOCK_HAS_DATA) != 0);
+
+			COPY_HEADER_FIELD(&blk->data_len, sizeof(uint16));
+			/* cross-check that the HAS_DATA flag is set iff data_length > 0 */
+			if (blk->has_data && blk->data_len == 0) Assert(false);
+			if (!blk->has_data && blk->data_len != 0) Assert(false);
+			datatotal += blk->data_len;
+
+			if (blk->has_image)
+			{
+				COPY_HEADER_FIELD(&blk->bimg_len, sizeof(uint16));
+				COPY_HEADER_FIELD(&blk->hole_offset, sizeof(uint16));
+				COPY_HEADER_FIELD(&blk->bimg_info, sizeof(uint8));
+
+				blk->apply_image = ((blk->bimg_info & BKPIMAGE_APPLY) != 0);
+
+				if (blk->bimg_info & BKPIMAGE_IS_COMPRESSED)
+				{
+					if (blk->bimg_info & BKPIMAGE_HAS_HOLE)
+						COPY_HEADER_FIELD(&blk->hole_length, sizeof(uint16));
+					else
+						blk->hole_length = 0;
+				}
+				else
+					blk->hole_length = BLCKSZ - blk->bimg_len;
+				datatotal += blk->bimg_len;
+
+				if ((blk->bimg_info & BKPIMAGE_HAS_HOLE) && (blk->hole_offset == 0 || blk->hole_length == 0 || blk->bimg_len == BLCKSZ))
+					Assert(false);
+				if (!(blk->bimg_info & BKPIMAGE_HAS_HOLE) && (blk->hole_offset != 0 || blk->hole_length != 0))
+					Assert(false);
+				if ((blk->bimg_info & BKPIMAGE_IS_COMPRESSED) && blk->bimg_len == BLCKSZ)
+					Assert(false);
+				if (!(blk->bimg_info & BKPIMAGE_HAS_HOLE) && !(blk->bimg_info & BKPIMAGE_IS_COMPRESSED) && blk->bimg_len != BLCKSZ)
+					Assert(false);
+			}
+			if (!(fork_flags & BKPBLOCK_SAME_REL))
+			{
+				COPY_HEADER_FIELD(&blk->rnode, sizeof(RelFileNode));
+				rnode = &blk->rnode;
+			}
+			else
+			{
+				if (rnode == NULL) Assert(false);
+				blk->rnode = *rnode;
+			}
+			COPY_HEADER_FIELD(&blk->blkno, sizeof(BlockNumber));
+
+			KeyType page_id = {
+				blk->rnode.spcNode,
+				blk->rnode.dbNode,
+				blk->rnode.relNode,
+				blk->forknum,
+				blk->blkno
+			};
+			std::unique_lock<std::shared_mutex> lk(vm_mtx);
+			auto vm_ptr = vm[page_id].begin();
+			while(true){
+				if(vm_ptr == vm[page_id].end() || *vm_ptr < lsn){
+					vm[page_id].insert(vm_ptr, lsn);
+					break;
+				}
+				else if(*vm_ptr == lsn)
+					break;
+			}
+		}
+		else
+			Assert(false);
+	}
+	Assert(remaining == datatotal);
 }

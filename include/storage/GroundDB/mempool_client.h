@@ -9,6 +9,8 @@ extern "C" {
 #include <infiniband/verbs.h>
 #include "c.h"
 #include "access/logindex_hashmap.h"
+#include "access/xlogrecord.h"
+#include "access/xlogreader.h"
 #include "storage/bufpage.h"
 
 struct RDMAReadPageInfo{
@@ -30,6 +32,8 @@ extern void AsyncAccessPageOnMemoryPool(KeyType PageID);
 extern void AsyncGetNewestPageAddressTable();
 
 extern void AsyncFlushPageToMemoryPool(char* src, KeyType PageID);
+
+extern void UpdateVersionMap(XLogRecord* record, XLogRecPtr lsn);
 
 
 #ifdef __cplusplus

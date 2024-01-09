@@ -90,6 +90,8 @@
 #include "storage/rpcclient.h"
 #include "storage/rel_cache.h"
 
+#include "storage/GroundDB/mempool_client.h"
+
 //#define ITER_TIMING
 #ifdef ITER_TIMING
 #include <sys/time.h>
@@ -1717,6 +1719,8 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 	{
 		char	   *rdata_data = rdata->data;
 		int			rdata_len = rdata->len;
+
+		UpdateVersionMap(rdata_data, EndPos); // CurrPos);
 
 		while (rdata_len > freespace)
 		{
