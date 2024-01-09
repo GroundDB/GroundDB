@@ -10,6 +10,7 @@ extern "C" {
 #include "c.h"
 #include "access/logindex_hashmap.h"
 #include "access/xlogrecord.h"
+#include "access/xlog_internal.h"
 #include "access/xlogreader.h"
 #include "storage/bufpage.h"
 
@@ -33,7 +34,7 @@ extern void AsyncGetNewestPageAddressTable();
 
 extern void AsyncFlushPageToMemoryPool(char* src, KeyType PageID);
 
-extern void UpdateVersionMap(XLogRecord* record, XLogRecPtr lsn);
+extern void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn);
 
 
 #ifdef __cplusplus

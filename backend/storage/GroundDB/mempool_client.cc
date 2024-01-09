@@ -234,24 +234,41 @@ void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
 	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)&a);
 }
 
-void UpdateVersionMap(XLogRecord* record, XLogRecPtr lsn){
+void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 	auto& vm = mempool::MemPoolClient::Get_Instance()->vm;
 	auto& vm_mtx = mempool::MemPoolClient::Get_Instance()->vm_mtx;
-#define COPY_HEADER_FIELD(_dst, _size)			\
-	do {										\
-		Assert (remaining >= _size);			\
-		memcpy(_dst, ptr, _size);				\
-		ptr += _size;							\
-		remaining -= _size;						\
+#define MIN(a, b) ((a) <= (b) ? (a) : (b))
+#define COPY_HEADER_FIELD(_dst, _size)								\
+	do {															\
+		Assert (remaining >= _size);								\
+		for(size_t size = _size; size > 0;){						\
+			while(ptr == rdata->data + rdata->len){					\
+				rdata = rdata->next;								\
+				ptr = rdata->data;									\
+			}														\
+			size_t s = MIN(size, rdata->data + rdata->len - ptr);	\
+			memcpy(_dst, ptr, s);									\
+			ptr += s;												\
+			size -= s;												\
+		}															\
+		remaining -= _size;											\
 	} while(0)
-#define SKIP_HEADER_FIELD(_size)				\
-	do {										\
-		Assert (remaining >= _size);			\
-		ptr += _size;							\
-		remaining -= _size;						\
+#define SKIP_HEADER_FIELD(_size)									\
+	do {															\
+		Assert (remaining >= _size);								\
+		for(size_t size = _size; size > 0;){						\
+			while(ptr == rdata->data + rdata->len){					\
+				rdata = rdata->next;								\
+				ptr = rdata->data;									\
+			}														\
+			size_t s = MIN(size, rdata->data + rdata->len - ptr);	\
+			ptr += s;												\
+			size -= s;												\
+		}															\
+		remaining -= _size;											\
 	} while(0)
 
-	auto ptr = (char*)record;
+	auto ptr = (char*)rdata->data;
 	uint32		remaining;
 	uint32		datatotal;
 	RelFileNode *rnode = NULL;
@@ -259,8 +276,9 @@ void UpdateVersionMap(XLogRecord* record, XLogRecPtr lsn){
 	int max_block_id = -1;
 	DecodedBkpBlock blk[0];
 
-	ptr += SizeOfXLogRecord;
-	remaining = record->xl_tot_len - SizeOfXLogRecord;
+	/* we assume that all of the record header is in the first chunk */
+	remaining = ((XLogRecord*)rdata->data)->xl_tot_len;
+	SKIP_HEADER_FIELD(SizeOfXLogRecord);
 
 	/* Decode the headers */
 	datatotal = 0;

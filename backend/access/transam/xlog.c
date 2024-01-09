@@ -1301,6 +1301,9 @@ XLogInsertRecord(XLogRecData *rdata,
 		FIN_CRC32C(rdata_crc);
 		rechdr->xl_crc = rdata_crc;
 
+		if(IsRpcClient)
+			UpdateVersionMap(rdata, EndPos);
+
 		/*
 		 * All the record data, including the header, is now ready to be
 		 * inserted. Copy the record in the space reserved.
@@ -1719,8 +1722,6 @@ CopyXLogRecordToWAL(int write_len, bool isLogSwitch, XLogRecData *rdata,
 	{
 		char	   *rdata_data = rdata->data;
 		int			rdata_len = rdata->len;
-
-		UpdateVersionMap(rdata_data, EndPos); // CurrPos);
 
 		while (rdata_len > freespace)
 		{
