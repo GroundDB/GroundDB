@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <map>
 
+#include "c.h"
+#include "access/logindex_hashmap.h"
 #include "storage/DSMEngine/export.h"
 #include <shared_mutex>
 

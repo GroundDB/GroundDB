@@ -23,7 +23,7 @@
 
    ```
    cd ..
-   ./configure --prefix=$INSTALL_DIR LDFLAGS='-std=c++17 -lstdc++ -lrocksdb -lthrift -lrt -ldl -lsnappy -lgflags -lz -lbz2 -llz4 -lzstd -lrocksdb -lpthread -libverbs -I. -I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/bin'
+   ./configure --prefix=$INSTALL_DIR LDFLAGS='-std=c++17 -lstdc++ -lrocksdb -lthrift -lrt -ldl -lsnappy -lgflags -lz -lbz2 -llz4 -lzstd -lpthread -libverbs -lgtest -lgmock -I. -I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/bin'
    make
    make install
    ```
