@@ -48,6 +48,7 @@
 #include "storage/builtin_shmht.h"
 #include "utils/snapmgr.h"
 #include "access/polar_logindex.h"
+#include "storage/GroundDB/mempool_shmem.h"
 
 /* GUCs */
 int			shared_memory_type = DEFAULT_SHARED_MEMORY_TYPE;
@@ -227,6 +228,7 @@ CreateSharedMemoryAndSemaphores(void)
 	CommitTsShmemInit();
 	SUBTRANSShmemInit();
 	MultiXactShmemInit();
+	MemPoolClientShmemInit();
 	InitBufferPool();
 
     polar_logindex_shmem_init(24, 0);

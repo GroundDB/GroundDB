@@ -13,6 +13,9 @@ extern "C" {
 #include "access/xlog_internal.h"
 #include "access/xlogreader.h"
 #include "storage/bufpage.h"
+#include "storage/GroundDB/mempool_shmem.h"
+
+#define SyncPAT_Interval_ms 1000
 
 struct RDMAReadPageInfo{
 	struct ibv_mr remote_pa_mr, remote_pida_mr;

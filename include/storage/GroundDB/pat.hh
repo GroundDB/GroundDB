@@ -22,10 +22,6 @@ public:
 #define nullKeyType ((KeyType){(uint64_t)-1, (uint64_t)-1, (uint64_t)-1, (uint32_t)-1, -1})
 
 class PageAddressTable{
-	std::shared_mutex mtx;
-	std::unordered_map<KeyType, std::pair<size_t, size_t>, KeyTypeHashFunction, KeyTypeEqualFunction> pid_to_idx;
-	std::vector<std::vector<KeyType>> idx_to_pid;
-	std::vector<std::pair<ibv_mr, ibv_mr>> idx_to_mr;
 public:
 	size_t page_array_count();
 	size_t page_array_size(size_t pa_idx);

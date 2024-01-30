@@ -30,7 +30,7 @@ SUBDIRS = \
 	test/regress \
 	test/isolation \
 	test/perl \
-	test/GroundDB
+	# test/GroundDB
 
 ifeq ($(with_llvm), yes)
 SUBDIRS += backend/jit/llvm

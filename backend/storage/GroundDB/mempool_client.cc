@@ -22,18 +22,19 @@ public:
     PageAddressTable pat;
     DSMEngine::ThreadPool* thrd_pool;
 	VersionMap vm;
-	std::shared_mutex vm_mtx;
 };
 
 MemPoolClient::MemPoolClient(){
+	LWLockAcquire(mempool_client_connection_lock, LW_EXCLUSIVE);
     struct DSMEngine::config_t config = {
             NULL,  /* dev_name */
             122189, /* tcp_port */
             1,	 /* ib_port */
             1, /* gid_idx */
             0,
-            0};
+            0 << 16 | get_MemPoolClient_node_id()};
     rdma_mg = std::shared_ptr<DSMEngine::RDMA_Manager>(DSMEngine::RDMA_Manager::Get_Instance(&config));
+	LWLockRelease(mempool_client_connection_lock);
     rdma_mg->Mempool_initialize(DSMEngine::PageArray, BLCKSZ, RECEIVE_OUTSTANDING_SIZE * BLCKSZ);
     rdma_mg->Mempool_initialize(DSMEngine::PageIDArray, sizeof(KeyType), RECEIVE_OUTSTANDING_SIZE * sizeof(KeyType));
 
@@ -45,10 +46,11 @@ MemPoolClient::MemPoolClient(){
 	threads.emplace_back([this]{
 		while(true){
 			std::function<void(void *args)> handler = [this](void *args){
-				this->GetNewestPageAddressTable();
+				if(whetherSyncPAT())
+					this->GetNewestPageAddressTable();
 			};
 			thrd_pool->Schedule(std::move(handler), (void*)nullptr);
-			usleep(1000);
+			usleep(SyncPAT_Interval_ms);
 		}
 	});
 }
@@ -165,8 +167,8 @@ void mempool::MemPoolClient::GetNewestPageAddressTable(){
 	auto& pat = this->pat;
 	auto rdma_mg = this->rdma_mg;
 	ibv_mr recv_mr, send_mr;
-	for(size_t i = 0; i < pat.page_array_count(); i++)
-		for(size_t j = 0; j < pat.page_array_size(i); j += SYNC_PAT_SIZE){
+	for(size_t i = 0, max_i = pat.page_array_count(); i < max_i; i++)
+		for(size_t j = 0, max_j = pat.page_array_size(i); j < max_j; j += SYNC_PAT_SIZE){
 			rdma_mg->Allocate_Local_RDMA_Slot(recv_mr, DSMEngine::Message);
 			rdma_mg->post_receive<DSMEngine::RDMA_Reply>(&recv_mr, 1);
 			rdma_mg->Allocate_Local_RDMA_Slot(send_mr, DSMEngine::Message);
@@ -236,7 +238,6 @@ void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
 
 void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 	auto& vm = mempool::MemPoolClient::Get_Instance()->vm;
-	auto& vm_mtx = mempool::MemPoolClient::Get_Instance()->vm_mtx;
 #define MIN(a, b) ((a) <= (b) ? (a) : (b))
 #define COPY_HEADER_FIELD(_dst, _size)								\
 	do {															\
@@ -374,7 +375,7 @@ void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 				blk->forknum,
 				blk->blkno
 			};
-			std::unique_lock<std::shared_mutex> lk(vm_mtx);
+			LWLockAcquire(mempool_client_version_map_lock, LW_EXCLUSIVE);
 			auto vm_ptr = vm[page_id].begin();
 			while(true){
 				if(vm_ptr == vm[page_id].end() || *vm_ptr < lsn){
@@ -384,6 +385,7 @@ void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 				else if(*vm_ptr == lsn)
 					break;
 			}
+			LWLockRelease(mempool_client_version_map_lock);
 		}
 		else
 			Assert(false);

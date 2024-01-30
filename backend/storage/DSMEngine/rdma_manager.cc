@@ -4,26 +4,9 @@
 // #include "storage/page.h"
 #include "storage/DSMEngine/HugePageAlloc.h"
 // #include "DSMEngine/cache.h"
-#ifdef RDMAPROCESSANALYSIS
-extern int TimePrintCounter[MAX_APP_THREAD];
-extern bool Show_Me_The_Print;
-#endif
-uint64_t cache_invalidation[MAX_APP_THREAD] = {0};
 
 namespace DSMEngine {
 uint16_t RDMA_Manager::node_id = 0;
-#ifdef PROCESSANALYSIS
-std::atomic<uint64_t> RDMA_Manager::RDMAReadTimeElapseSum = 0;
-std::atomic<uint64_t> RDMA_Manager::ReadCount = 0;
-#endif
-//TODO: This should be moved to some other classes which is strongly related to btree or storage engine.
-thread_local GlobalAddress path_stack[define::kMaxCoro][define::kMaxLevelOfTree];
-
-#ifdef GETANALYSIS
-std::atomic<uint64_t> RDMA_Manager::RDMAFindmrElapseSum = 0;
-std::atomic<uint64_t> RDMA_Manager::RDMAMemoryAllocElapseSum = 0;
-std::atomic<uint64_t> RDMA_Manager::ReadCount1 = 0;
-#endif
 
 thread_local int RDMA_Manager::thread_id = 0;
 thread_local int RDMA_Manager::qp_inc_ticket = 0;
@@ -2459,22 +2442,6 @@ RDMA_Manager::Batch_Submit_WRs(ibv_send_wr *sr, int poll_num, uint16_t target_no
                 rc = ibv_post_send(qp, sr, &bad_wr);
                 l.unlock();
         }
-//#ifdef PROCESSANALYSIS
-//                if (TimePrintCounter[RDMA_Manager::thread_id]>=TIMEPRINTGAP){
-//                        auto stop = std::chrono::high_resolution_clock::now();
-//                        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-////#ifndef NDEBUG
-//                        printf("find the QP uses (%ld) ns\n", duration.count());
-////                        TimePrintCounter[RDMA_Manager::thread_id] = 0;
-//                }else{
-////                        TimePrintCounter[RDMA_Manager::thread_id]++;
-//                }
-////#endif
-//#endif
-//#ifdef PROCESSANALYSIS
-//                start = std::chrono::high_resolution_clock::now();
-//#endif
-//                DEBUG_PRINT("Batch submit polling\n");
         if (rc) {
                 assert(false);
                 fprintf(stderr, "failed to post SR, return is %d\n", rc);
@@ -2493,16 +2460,6 @@ RDMA_Manager::Batch_Submit_WRs(ibv_send_wr *sr, int poll_num, uint16_t target_no
                 }
                 delete[] wc;
         }
-//#ifdef PROCESSANALYSIS
-//                if (TimePrintCounter[RDMA_Manager::thread_id]>=TIMEPRINTGAP){
-//                        auto stop = std::chrono::high_resolution_clock::now();
-//                        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-//                        printf("polling the QP uses (%ld) ns\n", duration.count());
-////                        TimePrintCounter[RDMA_Manager::thread_id] = 0;
-//                }else{
-////                        TimePrintCounter[RDMA_Manager::thread_id]++;
-//                }
-//#endif
         return rc;
 }
 

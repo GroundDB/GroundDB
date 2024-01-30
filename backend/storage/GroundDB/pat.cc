@@ -1,5 +1,6 @@
 #include "storage/GroundDB/rdma.hh"
 #include "storage/GroundDB/util.h"
+#include "storage/GroundDB/mempool_shmem.h"
 
 namespace mempool
 {
@@ -29,36 +30,66 @@ bool KeyTypeEqualFunction::operator() (const KeyType &key1, const KeyType &key2)
 }
 
 size_t PageAddressTable::page_array_count(){
-	return idx_to_pid.size();
+	LWLockAcquire(mempool_client_pat_lock, LW_SHARED);
+	auto res = *mpc_pa_cnt;
+	LWLockRelease(mempool_client_pat_lock);
+	return res;
 }
 size_t PageAddressTable::page_array_size(size_t pa_idx){
-	return idx_to_pid[pa_idx].size();
+	LWLockAcquire(mempool_client_pat_lock, LW_SHARED);
+	auto res = mpc_pa_size[pa_idx + 1] - mpc_pa_size[pa_idx];
+	LWLockRelease(mempool_client_pat_lock);
+	return res;
 }
 void PageAddressTable::append_page_array(size_t pa_size, const ibv_mr& pa_mr, const ibv_mr& pida_mr){
-	std::unique_lock<std::shared_mutex> lk(mtx);
-	idx_to_pid.emplace_back();
-	idx_to_pid.back().resize(pa_size);
-	for(int i = 0; i < pa_size; i++)
-		idx_to_pid.back()[i] = nullKeyType;
-	idx_to_mr.push_back(std::make_pair(pa_mr, pida_mr));
+	LWLockAcquire(mempool_client_pat_lock, LW_EXCLUSIVE);
+	mpc_pa_size[*mpc_pa_cnt + 1] = mpc_pa_size[*mpc_pa_cnt] + pa_size;
+	for(size_t i = mpc_pa_size[*mpc_pa_cnt]; i < mpc_pa_size[*mpc_pa_cnt+ 1]; i++)
+		mpc_idx_to_pid[i] = nullKeyType;
+	mpc_idx_to_mr[*mpc_pa_cnt << 1] = pa_mr;
+	mpc_idx_to_mr[*mpc_pa_cnt << 1 | 1] = pida_mr;
+	(*mpc_pa_cnt)++;
+	LWLockRelease(mempool_client_pat_lock);
 }
 void PageAddressTable::at(KeyType pid, RDMAReadPageInfo& info){
-	std::shared_lock<std::shared_mutex> lk(mtx);
-	if(pid_to_idx.count(pid)){
-		auto idx = pid_to_idx[pid];
-		info.remote_pa_mr = idx_to_mr[idx.first].first;
-		info.remote_pida_mr = idx_to_mr[idx.first].second;
-		info.pa_ofs = idx.second;
+	LWLockAcquire(mempool_client_pat_lock, LW_SHARED);
+    auto *result = (PATLookupEntry*)
+		hash_search_with_hash_value(mpc_pid_to_idx,
+									&pid,
+									get_hash_value(mpc_pid_to_idx, &pid),
+									HASH_FIND,
+									NULL);
+	if(result != NULL){
+		info.remote_pa_mr = mpc_idx_to_mr[result->pa_idx << 1];
+		info.remote_pida_mr = mpc_idx_to_mr[result->pa_idx << 1 | 1];
+		info.pa_ofs = result->pa_ofs;
 	}
 	else
 		info.pa_ofs = -1;
+	LWLockRelease(mempool_client_pat_lock);
 }
 void PageAddressTable::update(size_t pa_idx, size_t pa_ofs, KeyType pid){
-	std::unique_lock<std::shared_mutex> lk(mtx);
-	if(!KeyTypeEqualFunction()(idx_to_pid[pa_idx][pa_ofs], nullKeyType))
-		pid_to_idx.erase(idx_to_pid[pa_idx][pa_ofs]);
-	idx_to_pid[pa_idx][pa_ofs] = pid;
-	pid_to_idx[pid] = std::make_pair(pa_idx, pa_ofs);
+	LWLockAcquire(mempool_client_pat_lock, LW_EXCLUSIVE);
+	auto& page_id = mpc_idx_to_pid[mpc_pa_size[pa_idx] + pa_ofs];
+	if(!KeyTypeEqualFunction()(page_id, nullKeyType)){
+    	auto *result = (PATLookupEntry*)
+			hash_search_with_hash_value(mpc_pid_to_idx,
+										&page_id,
+										get_hash_value(mpc_pid_to_idx, &page_id),
+										HASH_REMOVE,
+										NULL);
+		Assert(result != NULL);
+	}
+	page_id = pid;
+    auto result = (PATLookupEntry*)
+		hash_search_with_hash_value(mpc_pid_to_idx,
+									&pid,
+									get_hash_value(mpc_pid_to_idx, &pid),
+									HASH_ENTER,
+									NULL);
+	result->pa_idx = pa_idx;
+	result->pa_ofs = pa_ofs;
+	LWLockRelease(mempool_client_pat_lock);
 }
 
 } // namespace mempool
