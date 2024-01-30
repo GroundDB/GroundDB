@@ -12,6 +12,8 @@ KeyType *mpc_idx_to_pid;
 ibv_mr *mpc_idx_to_mr;
 HTAB *mpc_pid_to_idx;
 
+HTAB_VM *version_map;
+
 void* ShmemInitStruct(char* name, size_t size, bool& found_any, bool& found_all){
 	bool found;
 	auto ptr = ShmemInitStruct(name, size, &found);
@@ -58,6 +60,9 @@ void MemPoolClientShmemInit(){
 		ShmemInitHash("MemPool Client PageID-to-index map",
 						MAX_TOTAL_PAGE_ARRAY_SIZE, MAX_TOTAL_PAGE_ARRAY_SIZE,
 						&info, HASH_ELEM | HASH_BLOBS | HASH_PARTITION);
+	version_map =
+		ShmemInitVersionMap("MemPool Client VersionMap",
+						1 << 13, 1 << 15);
 
 	if (found_any){
 		/* should find all of these, or none of them */
@@ -92,6 +97,8 @@ Size MemPoolClientShmemSize(void)
 	size = add_size(size, mul_size(MAX_PAGE_ARRAY_COUNT, sizeof(ibv_mr) * 2));
 
 	size = add_size(size, hash_estimate_size(MAX_TOTAL_PAGE_ARRAY_SIZE, sizeof(PATLookupEntry)));
+	
+	size = add_size(size, hash_estimate_size_vm(1 << 13, 1 << 15));
 
 	return size;
 }

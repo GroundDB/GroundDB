@@ -2,11 +2,9 @@
 #include "storage/GroundDB/mempool_client.h"
 #include "storage/GroundDB/rdma.hh"
 #include "storage/DSMEngine/rdma_manager.h"
+#include "utils/version_map.h"
 
 namespace mempool{
-
-typedef std::unordered_map<KeyType, std::list<XLogRecPtr>, KeyTypeHashFunction, KeyTypeEqualFunction>
-	VersionMap;
 
 class MemPoolClient{
 public:
@@ -21,7 +19,6 @@ public:
     std::vector<std::thread> threads;
     PageAddressTable pat;
     DSMEngine::ThreadPool* thrd_pool;
-	VersionMap vm;
 };
 
 MemPoolClient::MemPoolClient(){
@@ -237,7 +234,6 @@ void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
 }
 
 void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
-	auto& vm = mempool::MemPoolClient::Get_Instance()->vm;
 #define MIN(a, b) ((a) <= (b) ? (a) : (b))
 #define COPY_HEADER_FIELD(_dst, _size)								\
 	do {															\
@@ -376,15 +372,26 @@ void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 				blk->blkno
 			};
 			LWLockAcquire(mempool_client_version_map_lock, LW_EXCLUSIVE);
-			auto vm_ptr = vm[page_id].begin();
-			while(true){
-				if(vm_ptr == vm[page_id].end() || *vm_ptr < lsn){
-					vm[page_id].insert(vm_ptr, lsn);
-					break;
-				}
-				else if(*vm_ptr == lsn)
-					break;
+			bool found, head;
+			auto result = 
+				hash_search_vm(version_map, &page_id, HASH_ENTER, &found, &head);
+			if(head){
+				auto item_head = (ITEMHEAD_VM*)result;
+				for(int i = 0; i < SLOT_CNT_VM; i++)
+					if(item_head->lsn[i] == InvalidXLogRecPtr){
+						item_head->lsn[i] = lsn;
+						break;
+					}
 			}
+			else{
+				auto item_head = (ITEMSEG_VM*)result;
+				for(int i = 0; i < SLOT_CNT_VM; i++)
+					if(item_head->lsn[i] == InvalidXLogRecPtr){
+						item_head->lsn[i] = lsn;
+						break;
+					}
+			}
+			// can only insert to the end of list
 			LWLockRelease(mempool_client_version_map_lock);
 		}
 		else

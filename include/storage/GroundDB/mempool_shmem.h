@@ -32,6 +32,8 @@ typedef struct{
 	size_t pa_idx, pa_ofs;
 } PATLookupEntry;
 
+extern PGDLLIMPORT HTAB_VM *version_map;
+
 extern void MemPoolClientShmemInit();
 
 extern Size MemPoolClientShmemSize();
