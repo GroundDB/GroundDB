@@ -393,6 +393,7 @@ ShmemInitVersionMap(const char *name,		/* table string name for shmem index */
     infoP.keysize = sizeof(KeyType);
     infoP.entrysize = sizeof(SEGMENT_ITEM_VM);
 	infoP.hashtable_cnt = hashtable_cnt;
+	infoP.segment_cnt = segment_cnt;
 	int hash_flags = HASH_ELEM | HASH_BLOBS | HASH_SHARED_MEM | HASH_ALLOC;
 
 	/* look it up in the shmem index */

@@ -132,11 +132,11 @@ void MemPoolManager::server_communication_thread(std::string client_ip, int sock
     //     memcpy(temp_send+ 2*sizeof(ibv_mr), rdma_mg->global_index_table, sizeof(ibv_mr));
     // }
 
-    // if (rdma_mg->sock_sync_data(socket_fd, 3*sizeof(ibv_mr), temp_send, temp_receive)) /* just send a dummy char back and forth */
-    // {
-    //     fprintf(stderr, "sync error after QPs are were moved to RTS\n");
-    //     rc = 1;
-    // }
+    if (rdma_mg->sock_sync_data(socket_fd, 3*sizeof(ibv_mr), temp_send, temp_receive)) /* just send a dummy char back and forth */
+    {
+        fprintf(stderr, "sync error after QPs are were moved to RTS\n");
+        rc = 1;
+    }
 
     rdma_mg->memory_connection_counter.fetch_add(1);
     // Computing node and share memory connection succeed.
@@ -300,7 +300,7 @@ void MemPoolManager::flush_page_handler(void* args){
     res->successful = true;
 
     send_pointer->received = true;
-    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, 0);
+    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, target_node_id);
     ibv_wc wc[3] = {};
     rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
@@ -369,7 +369,7 @@ void MemPoolManager::mr_info_handler(void* args){
     memcpy(&res->pida_mr, page_arrays[req->pa_idx].pida_mr, sizeof(ibv_mr));
 
     send_pointer->received = true;
-    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, 0);
+    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, target_node_id);
     ibv_wc wc[3] = {};
     rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);

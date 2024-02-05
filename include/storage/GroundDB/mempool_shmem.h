@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <infiniband/verbs.h>
 #include "postgres.h"
 #include "storage/lwlock.h"
 #include "storage/shmem.h"
@@ -24,7 +25,7 @@ extern PGDLLIMPORT LWLock* mempool_client_lw_lock;
 
 extern PGDLLIMPORT size_t *mpc_pa_cnt, *mpc_pa_size;
 extern PGDLLIMPORT KeyType *mpc_idx_to_pid;
-extern PGDLLIMPORT ibv_mr *mpc_idx_to_mr;
+extern PGDLLIMPORT struct ibv_mr *mpc_idx_to_mr;
 extern PGDLLIMPORT HTAB *mpc_pid_to_idx;
 
 typedef struct{
@@ -32,6 +33,7 @@ typedef struct{
 	size_t pa_idx, pa_ofs;
 } PATLookupEntry;
 
+extern PGDLLIMPORT bool *is_first_mpc;
 extern PGDLLIMPORT HTAB_VM *version_map;
 
 extern void MemPoolClientShmemInit();

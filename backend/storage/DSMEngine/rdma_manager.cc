@@ -599,7 +599,6 @@ void RDMA_Manager::Client_Set_Up_Resources() {
         i++;
     }
     compute_nodes.insert({2*i, connection_conf});
-    assert((node_id - 1)/2 <    compute_nodes.size());
     i = 0;
     std::getline(myfile,connection_conf );
     while ((pos = connection_conf.find(space_delimiter)) != std::string::npos) {
@@ -839,11 +838,11 @@ bool RDMA_Manager::Get_Remote_qp_Info_Then_Connect(uint16_t target_node_id) {
 //        Send_heart_beat();
 
 
-    // if (sock_sync_data(res->sock_map[target_node_id], 3 * sizeof(ibv_mr), temp_send, temp_receive)) /* just send a dummy char back and forth */
-    // {
-    //     fprintf(stderr, "sync error after QPs are were moved to RTS\n");
-    //     rc = 1;
-    // }
+    if (sock_sync_data(res->sock_map[target_node_id], 3 * sizeof(ibv_mr), temp_send, temp_receive)) /* just send a dummy char back and forth */
+    {
+        fprintf(stderr, "sync error after QPs are were moved to RTS\n");
+        rc = 1;
+    }
     // printf("Finish the connection with node %d\n", target_node_id);
     // auto* global_data_mr = new ibv_mr();
     // *global_data_mr = ((ibv_mr*) temp_receive)[0];
@@ -1543,10 +1542,10 @@ int RDMA_Manager::sock_sync_data(int sock, int xfer_size, char* local_data,
         fprintf(stderr, "Failed writing data during sock_sync_data, total bytes are %d\n", rc);
     else
         rc = 0;
-    printf("total bytes: %d", xfer_size);
+    printf("total bytes: %d\n", xfer_size);
     while (!rc && total_read_bytes < xfer_size) {
         read_bytes = read(sock, remote_data, xfer_size);
-        printf("read byte: %d", read_bytes);
+        printf("read byte: %d\n", read_bytes);
         if (read_bytes > 0)
             total_read_bytes += read_bytes;
         else
