@@ -8,6 +8,12 @@
 
 namespace mempool {
 
+typedef struct request_handler_args{
+	DSMEngine::RDMA_Request request;
+	std::string client_ip;
+	uint16_t compute_node_id;
+} request_handler_args;
+
 void MemPoolManager::init_rdma_manager(int pr_s, DSMEngine::config_t &config){
     pr_size = pr_s;
     rdma_mg = std::make_shared<DSMEngine::RDMA_Manager>(config);
@@ -68,9 +74,9 @@ int MemPoolManager::server_sock_connect(const char* servername, int port) {
             while (!exit_all_threads_) {
                 sockfd = accept(listenfd, &address, &len);
                 std::string client_id = std::string(inet_ntoa(((struct sockaddr_in*)(&address))->sin_addr))
-                    + std::to_string(((struct sockaddr_in*)(&address))->sin_port);
+                    + ":" + std::to_string(((struct sockaddr_in*)(&address))->sin_port);
                 // Client id must be composed of ip address and port number.
-                std::cout << "connection built up from" << client_id << std::endl;
+                std::cout << "connection built up from " << client_id << std::endl;
                 std::cout << "connection family is " << address.sa_family << std::endl;
                 if (sockfd < 0) {
                     fprintf(stderr, "Connection accept error, erron: %d\n", errno);
@@ -165,31 +171,29 @@ void MemPoolManager::server_communication_thread(std::string client_ip, int sock
             }
         }
         miss_poll_counter = 0;
-        auto* receive_msg_buf = new DSMEngine::RDMA_Request();
-        *receive_msg_buf = *(DSMEngine::RDMA_Request*)recv_mr[buffer_position].addr;
+        auto* req_args = new request_handler_args();
+        auto& receive_msg_buf = req_args->request;
+        req_args->request = *(DSMEngine::RDMA_Request*)recv_mr[buffer_position].addr;
+        req_args->client_ip = client_ip;
+        req_args->compute_node_id = compute_node_id;
 
         // copy the pointer of receive buf to a new place because
         // it is the same with send buff pointer.
         rdma_mg->post_receive<DSMEngine::RDMA_Request>(&recv_mr[buffer_position], compute_node_id, client_ip);
-        struct request_handler_args req_args = {
-            .request = receive_msg_buf,
-            .client_ip = client_ip,
-            .compute_node_id = compute_node_id
-        };
-        if (receive_msg_buf->command == DSMEngine::flush_page_) {
+        if (receive_msg_buf.command == DSMEngine::flush_page_) {
             std::function<void(void *args)> handler = [this](void *args){this->flush_page_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
-        } else if (receive_msg_buf->command == DSMEngine::access_page_) {
+            thrd_pool->Schedule(std::move(handler), (void*)req_args);
+        } else if (receive_msg_buf.command == DSMEngine::access_page_) {
             std::function<void(void *args)> handler = [this](void *args){this->access_page_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
-        } else if (receive_msg_buf->command == DSMEngine::sync_pat_) {
+            thrd_pool->Schedule(std::move(handler), (void*)req_args);
+        } else if (receive_msg_buf.command == DSMEngine::sync_pat_) {
             std::function<void(void *args)> handler = [this](void *args){this->sync_pat_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
-        } else if (receive_msg_buf->command == DSMEngine::mr_info_) {
+            thrd_pool->Schedule(std::move(handler), (void*)req_args);
+        } else if (receive_msg_buf.command == DSMEngine::mr_info_) {
             std::function<void(void *args)> handler = [this](void *args){this->mr_info_handler(args);};
-            thrd_pool->Schedule(std::move(handler), (void*)&req_args);
+            thrd_pool->Schedule(std::move(handler), (void*)req_args);
         } else {
-            printf("corrupt message from client. %d\n", receive_msg_buf->command);
+            printf("corrupt message from client. %d\n", receive_msg_buf.command);
             assert(false);
             break;
         }
@@ -279,8 +283,8 @@ void MemPoolManager::allocate_page_array(size_t pa_size){
 }
 
 void MemPoolManager::flush_page_handler(void* args){
-    auto Args = (struct request_handler_args*)args;
-    auto request = Args->request;
+    auto Args = (request_handler_args*)args;
+    auto request = &Args->request;
     auto client_ip = Args->client_ip;
     auto target_node_id = Args->compute_node_id;
     auto req = &request->content.flush_page;
@@ -304,12 +308,12 @@ void MemPoolManager::flush_page_handler(void* args){
     ibv_wc wc[3] = {};
     rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
-    delete request;
+    delete Args;
 }
 
 void MemPoolManager::access_page_handler(void* args){
-    auto Args = (struct request_handler_args*)args;
-    auto request = Args->request;
+    auto Args = (request_handler_args*)args;
+    auto request = &Args->request;
     auto client_ip = Args->client_ip;
     auto target_node_id = Args->compute_node_id;
     auto req = &request->content.access_page;
@@ -324,15 +328,16 @@ void MemPoolManager::access_page_handler(void* args){
     res->successful = true;
 
     send_pointer->received = true;
-    rdma_mg->RDMA_Write(request->buffer, request->rkey, &send_mr,
-                        sizeof(DSMEngine::RDMA_Reply), client_ip, IBV_SEND_SIGNALED, 1, target_node_id);
+    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, target_node_id);
+    ibv_wc wc[3] = {};
+    rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
-    delete request;
+    delete Args;
 }
 
 void MemPoolManager::sync_pat_handler(void* args){
-    auto Args = (struct request_handler_args*)args;
-    auto request = Args->request;
+    auto Args = (request_handler_args*)args;
+    auto request = &Args->request;
     auto client_ip = Args->client_ip;
     auto target_node_id = Args->compute_node_id;
     auto req = &request->content.sync_pat;
@@ -347,15 +352,16 @@ void MemPoolManager::sync_pat_handler(void* args){
         res->page_id_array[i] = *(KeyType*)(page_array.pida_buf + (req->pa_ofs + i) * sizeof(KeyType));
 
     send_pointer->received = true;
-    rdma_mg->RDMA_Write(request->buffer, request->rkey, &send_mr,
-                        sizeof(DSMEngine::RDMA_Reply), client_ip, IBV_SEND_SIGNALED, 1, target_node_id);
+    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, target_node_id);
+    ibv_wc wc[3] = {};
+    rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
-    delete request;
+    delete Args;
 }
 
 void MemPoolManager::mr_info_handler(void* args){
-    auto Args = (struct request_handler_args*)args;
-    auto request = Args->request;
+    auto Args = (request_handler_args*)args;
+    auto request = &Args->request;
     auto client_ip = Args->client_ip;
     auto target_node_id = Args->compute_node_id;
     auto req = &request->content.mr_info;
@@ -373,7 +379,7 @@ void MemPoolManager::mr_info_handler(void* args){
     ibv_wc wc[3] = {};
     rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
     rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
-    delete request;
+    delete Args;
 }
 
 

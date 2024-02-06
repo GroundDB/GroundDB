@@ -35,9 +35,9 @@ void ThreadPool::BGThread(uint32_t thread_id) {
 		}
 
 		auto func = std::move(task_queue->front().function);
-		void* args = std::move(task_queue->front().args);
-		task_queue->pop();
+		void* args = task_queue->front().args;
 		func(args);
+		task_queue->pop();
 	}
 }
 
@@ -61,7 +61,7 @@ void ThreadPool::Schedule(std::function<void(void *args)> &&func, void *args, ui
 	}
 	BGItem item = BGItem();
 	item.function = std::move(func);
-	item.args = std::move(args);
+	item.args = args;
 	// Add to priority queue
 	queue_pool[thread_id == -1 ? rand() % total_threads_limit_ : thread_id]->push(item);
 }

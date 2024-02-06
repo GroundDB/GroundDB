@@ -1962,8 +1962,6 @@ int RDMA_Manager::RDMA_Write(void* addr, uint32_t rkey, ibv_mr* local_mr,
             std::cout << "RDMA Write Failed" << std::endl;
             std::cout << "q id is" << qp_type << std::endl;
             fprintf(stdout, "QP number=0x%x\n", res->qp_map[target_node_id]->qp_num);
-        }else{
-            DEBUG_PRINT("RDMA write successfully\n");
         }
         delete[] wc;
     }
@@ -2956,16 +2954,11 @@ int RDMA_Manager::post_receive(ibv_mr* mr, std::string qp_type, size_t size,
 int RDMA_Manager::poll_completion(ibv_wc* wc_p, int num_entries,
                                 std::string qp_type, bool send_cq,
                                 uint16_t target_node_id) {
-    // unsigned long start_time_msec;
-    // unsigned long cur_time_msec;
-    // struct timeval cur_time;
     int poll_result;
     int poll_num = 0;
     int rc = 0;
     ibv_cq* cq;
     /* poll the completion for a while before giving up of doing it .. */
-    // gettimeofday(&cur_time, NULL);
-    // start_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
     std::shared_lock<std::shared_mutex> l(qp_cq_map_mutex);
     if (qp_type == "write_local_flush"){
         cq = (ibv_cq*)cq_local_write_flush.at(target_node_id)->Get();
@@ -2983,7 +2976,6 @@ int RDMA_Manager::poll_completion(ibv_wc* wc_p, int num_entries,
         assert(cq != nullptr);
     }
     else{
-//        assert(res->cq_map.contains());
         if (send_cq)
             cq = res->cq_map.at(target_node_id).first;
         else
@@ -2997,11 +2989,7 @@ int RDMA_Manager::poll_completion(ibv_wc* wc_p, int num_entries,
             break;
         else
             poll_num = poll_num + poll_result;
-        /*gettimeofday(&cur_time, NULL);
-        cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);*/
-    } while (poll_num < num_entries);    // && ((cur_time_msec - start_time_msec) < MAX_POLL_CQ_TIMEOUT));
-    //*(end) = std::chrono::steady_clock::now();
-    // end = std::chrono::steady_clock::now();
+    } while (poll_num < num_entries);
     assert(poll_num == num_entries);
     if (poll_result < 0) {
         /* poll CQ failed */
@@ -3026,11 +3014,6 @@ int RDMA_Manager::poll_completion(ibv_wc* wc_p, int num_entries,
             }
         }
     }
-//                if (target_node_id == 1 && qp_type == "default"){
-//                        printf("poll a completion through default queuepair\n");
-//                }
-
-//                printf("Get a completion from queue\n");
     return rc;
 }
 
