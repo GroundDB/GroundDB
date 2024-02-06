@@ -4,7 +4,7 @@
 #include "storage/bufpage.h"
 #include "storage/GroundDB/mempool_client.h"
 
-// todo: OpenAurora/include/port.h define following macros which causes link error. We undef them for now.
+// todo (te): OpenAurora/include/port.h define following macros which causes link error. We undef them for now.
 #undef printf
 #undef sprintf
 #undef fprintf

@@ -177,8 +177,6 @@ union RDMA_Request_Content {
     WUnlock_message W_message;
 };
 union RDMA_Reply_Content {
-    mempool::flush_page_response flush_page;
-    mempool::access_page_response access_page;
     mempool::sync_pat_response sync_pat;
     mempool::mr_info_response mr_info;
 /********/

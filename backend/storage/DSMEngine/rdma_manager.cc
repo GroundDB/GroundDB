@@ -620,7 +620,7 @@ void RDMA_Manager::Client_Set_Up_Resources() {
     for(int i = 0; i < memory_nodes.size(); i++){
         uint16_t target_node_id = 2*i+1;
         res->sock_map[target_node_id] = client_sock_connect(memory_nodes[target_node_id].c_str(), rdma_config.tcp_port);
-        printf("connect to node id %d", target_node_id);
+        printf("connect to node id %d\n", target_node_id);
         if (res->sock_map[target_node_id] < 0) {
             fprintf(stderr, "failed to establish TCP connection to server %s, port %d\n",
                 memory_nodes[target_node_id].c_str(), rdma_config.tcp_port);

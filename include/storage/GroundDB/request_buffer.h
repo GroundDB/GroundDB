@@ -14,15 +14,9 @@ struct flush_page_request{
 	uint8_t page_data[BLCKSZ];
 	KeyType page_id;
 };
-struct flush_page_response{
-	bool successful;
-};
 
 struct access_page_request{
 	KeyType page_id;
-};
-struct access_page_response{
-	bool successful;
 };
 
 struct sync_pat_request{

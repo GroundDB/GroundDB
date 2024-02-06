@@ -279,7 +279,7 @@ void MemPoolManager::allocate_page_array(size_t pa_size){
         };
         freelist.push_back(pagemeta);
     }
-    // todo: multiple page_array
+    // todo (te): multiple page_array
 }
 
 void MemPoolManager::flush_page_handler(void* args){
@@ -289,10 +289,6 @@ void MemPoolManager::flush_page_handler(void* args){
     auto target_node_id = Args->compute_node_id;
     auto req = &request->content.flush_page;
 
-    ibv_mr send_mr;
-    rdma_mg->Allocate_Local_RDMA_Slot(send_mr, DSMEngine::Message);
-    auto send_pointer = (DSMEngine::RDMA_Reply*)send_mr.addr;
-    auto res = &send_pointer->content.flush_page;
 
     auto e = lru->LookupInsert(req->page_id, nullptr, 1, nullptr);
     auto pagemeta = (PageMeta*)e->value;
@@ -301,13 +297,7 @@ void MemPoolManager::flush_page_handler(void* args){
     memcpy(pagemeta->page_id_addr, &req->page_id, sizeof(KeyType));
     lk.unlock();
     lru->Release(e);
-    res->successful = true;
 
-    send_pointer->received = true;
-    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, target_node_id);
-    ibv_wc wc[3] = {};
-    rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
-    rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
     delete Args;
 }
 
@@ -318,20 +308,10 @@ void MemPoolManager::access_page_handler(void* args){
     auto target_node_id = Args->compute_node_id;
     auto req = &request->content.access_page;
 
-    ibv_mr send_mr;
-    rdma_mg->Allocate_Local_RDMA_Slot(send_mr, DSMEngine::Message);
-    auto send_pointer = (DSMEngine::RDMA_Reply*)send_mr.addr;
-    auto res = &send_pointer->content.access_page;
 
     auto e = lru->Lookup(req->page_id);
     lru->Release(e);
-    res->successful = true;
 
-    send_pointer->received = true;
-    rdma_mg->post_send<DSMEngine::RDMA_Reply>(&send_mr, target_node_id);
-    ibv_wc wc[3] = {};
-    rdma_mg->poll_completion(wc, 1, client_ip, true, target_node_id);
-    rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
     delete Args;
 }
 
