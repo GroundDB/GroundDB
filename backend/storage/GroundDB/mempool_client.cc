@@ -31,14 +31,17 @@ MemPoolClient::MemPoolClient(){
             0,
             0 << 16 | get_MemPoolClient_node_id()};
     rdma_mg = std::shared_ptr<DSMEngine::RDMA_Manager>(DSMEngine::RDMA_Manager::Get_Instance(&config));
-	LWLockRelease(mempool_client_connection_lock);
     rdma_mg->Mempool_initialize(DSMEngine::PageArray, BLCKSZ, RECEIVE_OUTSTANDING_SIZE * BLCKSZ);
     rdma_mg->Mempool_initialize(DSMEngine::PageIDArray, sizeof(KeyType), RECEIVE_OUTSTANDING_SIZE * sizeof(KeyType));
 
 	thrd_pool = new DSMEngine::ThreadPool();
     thrd_pool->SetBackgroundThreads(5);
 
-    AppendToPAT(0);
+	if(*is_first_mpc){
+		*is_first_mpc = false;
+    	AppendToPAT(0);
+	}
+	LWLockRelease(mempool_client_connection_lock);
 
 	threads.emplace_back([this]{
 		while(true){
@@ -79,11 +82,14 @@ void MemPoolClient::AppendToPAT(size_t pa_idx){
 }
 
 MemPoolClient* MemPoolClient::Get_Instance(){
+	static pid_t pid = -1;
     static MemPoolClient* client = nullptr;
     static std::mutex lock;
     lock.lock();
-    if (client == nullptr)
+    if (client == nullptr || pid != getpid()){
         client = new MemPoolClient();
+		pid = getpid();
+	}
     lock.unlock();
     return client;
 }
@@ -224,12 +230,13 @@ void mempool::MemPoolClient::FlushPageToMemoryPool(char* src, KeyType PageID){
 	rdma_mg->Deallocate_Local_RDMA_Slot(recv_mr.addr, DSMEngine::Message);
 }
 void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
-	struct Args{char* src; KeyType PageID;};
+	struct Args{char src[BLCKSZ]; KeyType PageID;};
 	std::function<void(void *args)> handler = [](void *args){
 		auto a = (struct Args*)args;
 		mempool::MemPoolClient::Get_Instance()->FlushPageToMemoryPool(a->src, a->PageID);
 	};
-	struct Args a = {src, PageID};
+	struct Args a = {.PageID = PageID};
+	memcpy(a.src, src, BLCKSZ);
 	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)&a);
 }
 
