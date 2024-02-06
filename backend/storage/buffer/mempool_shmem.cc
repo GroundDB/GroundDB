@@ -3,6 +3,7 @@
 #include "storage/GroundDB/mempool_shmem.h"
 
 LWLock *mempool_client_lw_lock;
+slock_t *mempool_client_s_lock;
 size_t *node_id_cnt;
 std::chrono::steady_clock::time_point *last_sync_pat;
 
@@ -28,6 +29,10 @@ void MemPoolClientShmemInit(){
 	mempool_client_lw_lock = (LWLock *)
 		ShmemInitStruct("MemPool Client lwlock",
 						NUMBER_OF_mempool_client_lw_lock * sizeof(LWLock),
+						found_any, found_all);
+	mempool_client_s_lock = (slock_t *)
+		ShmemInitStruct("MemPool Client slock",
+						NUMBER_OF_mempool_client_s_lock * sizeof(slock_t),
 						found_any, found_all);
 	node_id_cnt = (size_t*)
 		ShmemInitStruct("MemPool Client node ID counter",
@@ -57,7 +62,6 @@ void MemPoolClientShmemInit(){
 		ShmemInitStruct("MemPool Client first client flag",
 						sizeof(bool),
 						found_any, found_all);
-	*is_first_mpc = true;
     HASHCTL info;
     MemSet(&info, 0, sizeof(info));
     info.keysize = sizeof(KeyType);
@@ -78,10 +82,13 @@ void MemPoolClientShmemInit(){
 	else{
 		for(int i = 0; i < NUMBER_OF_mempool_client_lw_lock; i++)
 			LWLockInitialize(&mempool_client_lw_lock[i], LWTRANCHE_MEMPOOL_CLIENT);
+		for(int i = 0; i < NUMBER_OF_mempool_client_s_lock; i++)
+			S_INIT_LOCK(&mempool_client_s_lock[i]);
 		*node_id_cnt = 0;
 		*last_sync_pat = std::chrono::steady_clock::now();
 		*mpc_pa_cnt = 0;
 		*mpc_pa_size = 0;
+		*is_first_mpc = true;
 	}
 }
 
@@ -90,6 +97,8 @@ Size MemPoolClientShmemSize(void)
 	Size size = 0;
 
 	size = add_size(size, mul_size(NUMBER_OF_mempool_client_lw_lock, sizeof(LWLock)));
+
+	size = add_size(size, mul_size(NUMBER_OF_mempool_client_s_lock, sizeof(slock_t)));
 
 	size = add_size(size, sizeof(size_t));
 
@@ -120,16 +129,16 @@ size_t get_MemPoolClient_node_id(){
 
 bool whetherSyncPAT(){
     std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-	LWLockAcquire(mempool_client_sync_pat_lock, LW_EXCLUSIVE);
+	// LWLockAcquire(mempool_client_sync_pat_lock, LW_EXCLUSIVE);
 	std::chrono::steady_clock::duration elapsed = now - *last_sync_pat;
 	long long elapsed_seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 	if(elapsed_seconds >= SyncPAT_Interval_ms * 0.95){
 		*last_sync_pat = now;
-		LWLockRelease(mempool_client_sync_pat_lock);
+		// LWLockRelease(mempool_client_sync_pat_lock);
 		return true;
 	}
 	else{
-		LWLockRelease(mempool_client_sync_pat_lock);
+		// LWLockRelease(mempool_client_sync_pat_lock);
 		return false;
 	}
 }
