@@ -100,9 +100,8 @@ MemPoolClient* MemPoolClient::Get_Instance(){
 
 bool PageExistsInMemPool(KeyType PageID, RDMAReadPageInfo* rdma_read_info) {
 	auto client = mempool::MemPoolClient::Get_Instance();
-	RDMAReadPageInfo info;
-	client->pat.at(PageID, info);
-	return info.pa_ofs != -1;
+	client->pat.at(PageID, *rdma_read_info);
+	return rdma_read_info->pa_ofs != -1;
 }
 
 bool FetchPageFromMemoryPool(char* des, KeyType PageID, RDMAReadPageInfo* rdma_read_info){

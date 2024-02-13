@@ -193,7 +193,7 @@ void MemPoolManager::server_communication_thread(std::string client_ip, int sock
             std::function<void(void *args)> handler = [this](void *args){this->mr_info_handler(args);};
             thrd_pool->Schedule(std::move(handler), (void*)req_args);
         } else {
-            printf("corrupt message from client. %d\n", receive_msg_buf.command);
+            printf("corrupt message from client (node %d). %d\n", compute_node_id, receive_msg_buf.command);
             assert(false);
             break;
         }
