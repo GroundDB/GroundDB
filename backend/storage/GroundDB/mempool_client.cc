@@ -177,9 +177,6 @@ void mempool::MemPoolClient::GetNewestPageAddressTable(){
 			rdma_mg->Deallocate_Local_RDMA_Slot(recv_mr.addr, DSMEngine::Message);
 		}
 }
-void AsyncGetNewestPageAddressTable(){
-	// todo (te):
-}
 
 void mempool::MemPoolClient::FlushPageToMemoryPool(char* src, KeyType PageID){
 	auto rdma_mg = this->rdma_mg;
@@ -383,6 +380,6 @@ void MemPoolSyncMain(){
 	while(true){
 		if(whetherSyncPAT())
 			client->GetNewestPageAddressTable();
-		usleep(SyncPAT_Interval_ms);
+		usleep(SyncPAT_Interval_ms / 100);
 	}
 }
