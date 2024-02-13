@@ -39,6 +39,8 @@ extern void AsyncFlushPageToMemoryPool(char* src, KeyType PageID);
 
 extern void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn);
 
+extern void MemPoolSyncMain();
+
 
 #ifdef __cplusplus
 }

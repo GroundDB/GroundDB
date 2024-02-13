@@ -16,7 +16,6 @@ public:
 	void FlushPageToMemoryPool(char* src, KeyType PageID);
 
     std::shared_ptr<DSMEngine::RDMA_Manager> rdma_mg;
-    std::vector<std::thread> threads;
     PageAddressTable pat;
     DSMEngine::ThreadPool* thrd_pool;
 };
@@ -42,18 +41,6 @@ MemPoolClient::MemPoolClient(){
     	AppendToPAT(0);
 	}
 	LWLockRelease(mempool_client_connection_lock);
-
-	// todo (te): switch to another process instead of thread.
-	threads.emplace_back([this]{
-		while(true){
-			std::function<void(void *args)> handler = [this](void *args){
-				if(whetherSyncPAT())
-					this->GetNewestPageAddressTable();
-			};
-			thrd_pool->Schedule(std::move(handler), (void*)nullptr);
-			usleep(SyncPAT_Interval_ms);
-		}
-	});
 }
 
 void MemPoolClient::AppendToPAT(size_t pa_idx){
@@ -191,10 +178,7 @@ void mempool::MemPoolClient::GetNewestPageAddressTable(){
 		}
 }
 void AsyncGetNewestPageAddressTable(){
-	std::function<void(void *args)> handler = [](void *args){
-		mempool::MemPoolClient::Get_Instance()->GetNewestPageAddressTable();
-	};
-	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)nullptr);
+	// todo (te):
 }
 
 void mempool::MemPoolClient::FlushPageToMemoryPool(char* src, KeyType PageID){
@@ -392,4 +376,13 @@ void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 			Assert(false);
 	}
 	Assert(remaining == datatotal);
+}
+
+void MemPoolSyncMain(){
+	auto client = mempool::MemPoolClient::Get_Instance();
+	while(true){
+		if(whetherSyncPAT())
+			client->GetNewestPageAddressTable();
+		usleep(SyncPAT_Interval_ms);
+	}
 }
