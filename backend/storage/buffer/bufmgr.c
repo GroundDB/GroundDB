@@ -905,32 +905,36 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 			if (track_io_timing)
 				INSTR_TIME_SET_CURRENT(io_start);
 			if(IsRpcClient){
-				bool read_from_mempool = false;
-				KeyType page_id = {
-					smgr->smgr_rnode.node.spcNode,
-					smgr->smgr_rnode.node.dbNode,
-					smgr->smgr_rnode.node.relNode,
-					forkNum,
-					blockNum
-				};
-				RDMAReadPageInfo rdma_read_info;
-				if(PageExistsInMemPool(page_id, &rdma_read_info)){
-					Assert(DataChecksumsEnabled());
-					if(FetchPageFromMemoryPool((char*)bufBlock, page_id, &rdma_read_info)
-					&& PageFromMemPoolIsVerified((Page)bufBlock, blockNum)){
-						if(LsnIsSatisfied(((PageHeader)bufBlock)->pd_lsn)){
-							read_from_mempool = true;
-							ReplayXLog();
-							AsyncAccessPageOnMemoryPool(page_id);
+				if(IsRpcClient > 1){
+					bool read_from_mempool = false;
+					KeyType page_id = {
+						smgr->smgr_rnode.node.spcNode,
+						smgr->smgr_rnode.node.dbNode,
+						smgr->smgr_rnode.node.relNode,
+						forkNum,
+						blockNum
+					};
+					RDMAReadPageInfo rdma_read_info;
+					if(PageExistsInMemPool(page_id, &rdma_read_info)){
+						Assert(DataChecksumsEnabled());
+						if(FetchPageFromMemoryPool((char*)bufBlock, page_id, &rdma_read_info)
+						&& PageFromMemPoolIsVerified((Page)bufBlock, blockNum)){
+							if(LsnIsSatisfied(((PageHeader)bufBlock)->pd_lsn)){
+								read_from_mempool = true;
+								ReplayXLog();
+								AsyncAccessPageOnMemoryPool(page_id);
+							}
 						}
+						else
+							AsyncGetNewestPageAddressTable();
 					}
-					else
-						AsyncGetNewestPageAddressTable();
+					if(!read_from_mempool){
+						RpcReadBuffer_common((char*)bufBlock, smgr, relpersistence, forkNum, blockNum, mode);
+						AsyncFlushPageToMemoryPool((char*)bufBlock, page_id);
+					}
 				}
-				if(!read_from_mempool){
+				else
 					RpcReadBuffer_common((char*)bufBlock, smgr, relpersistence, forkNum, blockNum, mode);
-					AsyncFlushPageToMemoryPool((char*)bufBlock, page_id);
-				}
 			}
 			else
 			    smgrread(smgr, forkNum, blockNum, (char *) bufBlock);

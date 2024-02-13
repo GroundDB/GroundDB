@@ -1301,7 +1301,7 @@ XLogInsertRecord(XLogRecData *rdata,
 		FIN_CRC32C(rdata_crc);
 		rechdr->xl_crc = rdata_crc;
 
-		if(IsRpcClient)
+		if(IsRpcClient > 1)
 			UpdateVersionMap(rdata, EndPos);
 
 		/*
