@@ -142,8 +142,11 @@ void AsyncAccessPageOnMemoryPool(KeyType PageID){
 	std::function<void(void *args)> handler = [](void *args){
 		auto PageID = (KeyType*)args;
 		mempool::MemPoolClient::Get_Instance()->AccessPageOnMemoryPool(*PageID);
+		delete (KeyType*)args;
 	};
-	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)&PageID);
+	auto a = new KeyType;
+	*a = PageID;
+	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)a);
 }
 
 void mempool::MemPoolClient::GetNewestPageAddressTable(){
