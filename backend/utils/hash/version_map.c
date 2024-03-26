@@ -911,8 +911,8 @@ hash_search_with_hash_value_vm(HTAB_VM *hashp,
 			}
 
 			/* link into hashbucket chain */
-			*prevSegPtr = currSeg;
-			currSeg->link = NULL;
+			*prevBucketPtr = currBucket;
+			currBucket->link = NULL;
 
 			/* copy key into record */
 			currBucket->hashvalue = hashvalue;
