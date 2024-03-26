@@ -875,6 +875,8 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 
 	bufBlock = isLocalBuf ? LocalBufHdrGetBlock(bufHdr) : BufHdrGetBlock(bufHdr);
 
+	bool toMarkDirty = false;
+
 	if (isExtend)
 	{
 		/* new buffers are zero-filled */
@@ -888,6 +890,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 		 * doing so defeats the 'delayed allocation' mechanism, leading to
 		 * increased file fragmentation.
 		 */
+		toMarkDirty = true;
 	}
 	else
 	{
@@ -930,7 +933,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 					}
 					if(!read_from_mempool){
 						RpcReadBuffer_common((char*)bufBlock, smgr, relpersistence, forkNum, blockNum, mode);
-						AsyncFlushPageToMemoryPool((char*)bufBlock, page_id);
+						toMarkDirty = true;
 					}
 				}
 				else
@@ -2919,6 +2922,13 @@ FlushBuffer(BufferDesc *buf, SMgrRelation reln)
 			  buf->tag.blockNum,
 			  bufToWrite,
 			  false);
+	SyncFlushPageToMemoryPool(bufToWrite, (KeyType){
+		reln->smgr_rnode.node.spcNode,
+		reln->smgr_rnode.node.dbNode,
+		reln->smgr_rnode.node.relNode,
+		buf->tag.forkNum,
+		buf->tag.blockNum,
+	});
 
 	if (track_io_timing)
 	{
@@ -3413,6 +3423,13 @@ FlushRelationBuffers(Relation rel)
 						  bufHdr->tag.blockNum,
 						  localpage,
 						  false);
+				SyncFlushPageToMemoryPool(localpage, (KeyType){
+					rel->rd_smgr->smgr_rnode.node.spcNode,
+					rel->rd_smgr->smgr_rnode.node.dbNode,
+					rel->rd_smgr->smgr_rnode.node.relNode,
+					bufHdr->tag.forkNum,
+					bufHdr->tag.blockNum,
+				});
 
 				buf_state &= ~(BM_DIRTY | BM_JUST_DIRTIED);
 				pg_atomic_unlocked_write_u32(&bufHdr->state, buf_state);

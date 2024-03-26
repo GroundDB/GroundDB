@@ -199,15 +199,8 @@ void mempool::MemPoolClient::FlushPageToMemoryPool(char* src, KeyType PageID){
 	
 	rdma_mg->Deallocate_Local_RDMA_Slot(send_mr.addr, DSMEngine::Message);
 }
-void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
-	struct Args{char src[BLCKSZ]; KeyType PageID;};
-	std::function<void(void *args)> handler = [](void *args){
-		auto a = (struct Args*)args;
-		mempool::MemPoolClient::Get_Instance()->FlushPageToMemoryPool(a->src, a->PageID);
-	};
-	struct Args a = {.PageID = PageID};
-	memcpy(a.src, src, BLCKSZ);
-	mempool::MemPoolClient::Get_Instance()->thrd_pool->Schedule(std::move(handler), (void*)&a);
+void SyncFlushPageToMemoryPool(char* src, KeyType PageID){
+	mempool::MemPoolClient::Get_Instance()->FlushPageToMemoryPool(src, PageID);
 }
 
 void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
