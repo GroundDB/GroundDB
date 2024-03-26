@@ -6699,6 +6699,15 @@ ReadControlFileTimeLine(void) {
 #endif
 }
 
+XLogReaderState *
+XLogReaderAllocateForMemPool(void **private_data){
+	*private_data = malloc(sizeof(XLogPageReadPrivate));
+	MemSet(*private_data, 0, sizeof(XLogPageReadPrivate));
+	return XLogReaderAllocate(wal_segment_size, NULL,
+		XL_ROUTINE(.page_read = &XLogPageRead, .segment_open = NULL, .segment_close = wal_segment_close),
+		*private_data);
+}
+
 /*
  * This must be called ONCE during postmaster or standalone-backend startup
  */

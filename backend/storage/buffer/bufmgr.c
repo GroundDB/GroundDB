@@ -922,9 +922,10 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 						Assert(DataChecksumsEnabled());
 						if(FetchPageFromMemoryPool((char*)bufBlock, page_id, &rdma_read_info)
 						&& PageFromMemPoolIsVerified((Page)bufBlock, blockNum)){
-							if(LsnIsSatisfied(((PageHeader)bufBlock)->pd_lsn)){
+							XLogRecPtr cur_lsn = PageXLogRecPtrGet(((PageHeader)bufBlock)->pd_lsn);
+							if(LsnIsSatisfied(cur_lsn)){
 								read_from_mempool = true;
-								ReplayXLog();
+								toMarkDirty |= ReplayXLog(page_id, bufHdr, (char*)bufBlock, cur_lsn, GetLogWrtResultLsn());
 								AsyncAccessPageOnMemoryPool(page_id);
 							}
 						}
@@ -999,7 +1000,9 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 	else
 	{
 		/* Set BM_VALID, terminate IO, and wake up any waiters */
-		TerminateBufferIO(bufHdr, false, BM_VALID);
+		uint32 set_flag_bits = BM_VALID;
+		if(toMarkDirty) set_flag_bits |= BM_DIRTY;
+		TerminateBufferIO(bufHdr, false, set_flag_bits);
 	}
 
 	VacuumPageMiss++;
