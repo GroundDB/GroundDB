@@ -352,17 +352,17 @@ void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 				hash_search_vm(version_map, &page_id, HASH_ENTER, &found, &head);
 			if(head){
 				auto item_head = (ITEMHEAD_VM*)result;
-				for(int i = 0; i < SLOT_CNT_VM; i++)
+				for(int i = 0; i < ITEMHEAD_SLOT_CNT_VM; i++)
 					if(item_head->lsn[i] == InvalidXLogRecPtr){
 						item_head->lsn[i] = lsn;
 						break;
 					}
 			}
 			else{
-				auto item_head = (ITEMSEG_VM*)result;
-				for(int i = 0; i < SLOT_CNT_VM; i++)
-					if(item_head->lsn[i] == InvalidXLogRecPtr){
-						item_head->lsn[i] = lsn;
+				auto item_seg = (ITEMSEG_VM*)result;
+				for(int i = 0; i < ITEMSEG_SLOT_CNT_VM; i++)
+					if(item_seg->lsn[i] == InvalidXLogRecPtr){
+						item_seg->lsn[i] = lsn;
 						break;
 					}
 			}
