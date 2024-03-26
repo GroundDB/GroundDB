@@ -208,18 +208,18 @@ void AsyncFlushPageToMemoryPool(char* src, KeyType PageID){
 }
 
 void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
-	return; // todo (te): debug
 #define MIN(a, b) ((a) <= (b) ? (a) : (b))
 #define COPY_HEADER_FIELD(_dst, _size)								\
 	do {															\
 		Assert (remaining >= _size);								\
-		for(size_t size = _size; size > 0;){						\
+		for(size_t size = _size, ofs = 0; size > 0;){				\
 			while(ptr == rdata->data + rdata->len){					\
 				rdata = rdata->next;								\
 				ptr = rdata->data;									\
 			}														\
 			size_t s = MIN(size, rdata->data + rdata->len - ptr);	\
-			memcpy(_dst, ptr, s);									\
+			memcpy(_dst + ofs, ptr, s);								\
+			ofs += s; 												\
 			ptr += s;												\
 			size -= s;												\
 		}															\
@@ -246,7 +246,7 @@ void UpdateVersionMap(XLogRecData* rdata, XLogRecPtr lsn){
 	RelFileNode *rnode = NULL;
 	uint8		block_id;
 	int max_block_id = -1;
-	DecodedBkpBlock blk[0];
+	DecodedBkpBlock blk[1];
 
 	/* we assume that all of the record header is in the first chunk */
 	remaining = ((XLogRecord*)rdata->data)->xl_tot_len;
